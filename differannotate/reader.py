@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 10/04/2019
+# Last Modified: 11/15/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -36,88 +36,14 @@
 ###############################################################################
 
 import logging, re, os
-from quicksect import IntervalTree
 import numpy as np
 from collections import defaultdict as dd
-from .constants import FORMAT
+from differannotate.constants import FORMAT
+from differannotate.datastructures import *
+from differannotate.comparisons import overlap_r
 
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN, format=FORMAT)
-
-class dict_index(dict):
-	'''
-	A modified dictionary class meant to store and increment unique values
-	IDs as values are retrieved from keys.
-
-	# Usage
-	>>> DI = dict_index()
-	>>> DI['cat']
-	0
-	>>> DI['bear']
-	1
-	>>> DI['cat']
-	0
-	>>> DI['cat'] = 10
-	>>> DI['cat']
-	0
-	>>> DI.getkey(0)
-	'cat'
-	>>> DI.getkey(1)
-	'bear'
-	>>> DI.getkey(2)
-	Traceback (most recent call last):
-	...
-	KeyError: 2
-	>>> DI.getkey('dog')
-	Traceback (most recent call last):
-	...
-	TypeError: dog
-	'''
-	def __init__(self):
-		super(dict_index,self).__init__()
-		self.cur = 0
-	def __getitem__(self, key):
-		try:
-			return super(dict_index,self).__getitem__(key)
-		except:
-			super(dict_index,self).__setitem__(key, self.cur)
-			self.cur += 1
-			return super(dict_index,self).__getitem__(key)
-	def __setitem__(self, key, value):
-		pass
-	def getkey(self, val):
-		'''
-		# Parameters
-		val (int): Should be < len(dict_index)
-
-		# Raises
-		TypeError: if val is not an integer
-		KeyError: if val does not exist as a value in the dict_index
-		'''
-		if not isinstance(val, int):
-			raise TypeError(val)
-		if val >= self.cur:
-			raise KeyError(val)
-		keys = super(dict_index,self).keys()
-		vals = super(dict_index,self).values()
-		return keys[vals.index(val)]
-
-class iterit(IntervalTree):
-	def __init__(self):
-		super(iterit,self).__init__()
-		self.min = None
-		self.max = None
-	def add(self, start, end, other=None):
-		if self.min == None:
-			self.min = start
-			self.max = end
-		else:
-			if start < self.min:
-				self.min = start
-			if end > self.max:
-				self.max = end
-		super(iterit,self).add(start, end, other)
-	def iterintervals(self):
-		return super(iterit,self).search(self.min, self.max)
 
 class gff3_interval:
 	def __init__(self, gff3, name='control', fasta=None, include_chrom=False, force=False, \
@@ -187,6 +113,11 @@ class gff3_interval:
 		if self.chrom_lens:
 			return self.chrom_lens[chrom]
 		return max([iit[chrom].max for iit in self.gff3_trees.values()])
+	def get_chrom_set(self):
+		ret_set = set(self.gff3_trees[self.gff3_names[0]])
+		for n in self.gff3_names[1:]:
+			ret_set &= set(self.gff3_trees[n])
+		return ret_set
 	def elem_array(self, chrom, eid, col=1, strand=True):
 		'''
 		Creates a binary numpy array to represent the presence of
@@ -209,9 +140,10 @@ class gff3_interval:
 		for i,name in enumerate(self.gff3_names):
 			iit = self.gff3_trees[name][chrom]
 			for interval in iit.search(0,max_size):
-				if interval.data[col] != eid:
+				D = interval.data
+				if len(D) < col+1 or D[col] != eid:
 					continue
-				strand_id = interval.data[0]
+				strand_id = D[0]
 				s,e = interval.start, interval.end
 				if strand_id == 0 or not strand:
 					p_array[i, s:e] = 1
@@ -221,6 +153,63 @@ class gff3_interval:
 			return p_array, n_array
 		else:
 			return p_array, []
+	def calc_intersect_2(self, chrom, name1, name2, elem, col, p=95, strand=False, ret_set=False):
+		try:
+			eid = int(elem)
+		except ValueError:
+			eid = self.element_dict[elem]
+		# (Ab, aB, AB)
+		for n in (name1, name2): assert(chrom in self.gff3_trees[n])
+		n1_tree = self.gff3_trees[name1][chrom]
+		n2_tree = self.gff3_trees[name2][chrom]
+		# Leftover
+		n1_set = n1_tree.to_set(eid, col, strand)	#Ab
+		n2_set = n2_tree.to_set(eid, col, strand)	#aB
+		# Used
+		n1_int_set, n2_int_set = set(), set()	#AB
+		for interval in n1_tree.iifilter(eid, col, strand):
+			interval_tup = interval2tuple(interval)
+			n1_s, n1_e = interval.start, interval.end
+			for n2int in n2_tree.searchfilter(n1_s, n1_e, eid, col, strand):
+				n2int_tup = interval2tuple(n2int)
+				if n2int_tup in n2_set and overlap_r(interval, n2int, p):
+					n1_int_set.add(interval_tup)
+					n1_set.remove(interval_tup)
+					n2_int_set.add(n2int_tup)
+					n2_set.remove(n2int_tup)
+					break
+		assert len(n1_int_set) == len(n2_int_set)
+		if ret_set:
+			return n1_set, n2_set, n1_int_set
+		return len(n1_set), len(n2_set), len(n1_int_set)
+	def calc_intersect_3(self, chrom, name1, name2, name3, elem, col, p=95, strand=False, ret_set=False):
+		# (Abc, aBc, ABc, abC, AbC, aBC, ABC)
+		try:
+			eid = int(elem)
+		except ValueError:
+			eid = self.element_dict[elem]
+		for n in (name1, name2, name3): assert(chrom in self.gff3_trees[n])
+		n1_set = self.gff3_trees[name1][chrom].to_set(eid, col, strand)
+		func = self.calc_intersect_2
+		Ab12, aB12, AB12 = func(chrom, name1, name2, elem, col, p, strand, ret_set=True)
+		#print "Calc3",elem,col,p
+		#print 'Ab12', Ab12, 'aB12', aB12, 'AB12', AB12
+		Ab13, aB13, AB13 = func(chrom, name1, name3, elem, col, p, strand, ret_set=True)
+		#print 'Ab13', Ab13, 'aB13', aB13, 'AB13', AB13
+		Ab23, aB23, AB23 = func(chrom, name2, name3, elem, col, p, strand, ret_set=True)
+		#print 'Ab23', Ab23, 'aB23', aB23, 'AB23', AB23
+		Abc123 = Ab12 & Ab13
+		aBc123 = _set_int(aB12, Ab23, p)
+		ABc123 = AB12 - (AB13 | _set_mutate(n1_set, AB23,p))
+		abC123 = _set_int(aB13, aB23, p)
+		AbC123 = AB13 - (AB12 | _set_mutate(n1_set, AB23,p))
+		aBC123 = _set_mutate(n1_set, AB23, p) - (AB12 | AB13)
+		ABC123 = _set_int(_set_int(AB12, AB13, p), AB23, p)
+		ret = (Abc123 , aBc123 , ABc123 , abC123 , AbC123 , aBC123 , ABC123)
+		#print 'Abc123',Abc123 , 'aBc123',aBc123 , 'ABc123',ABc123 , 'abC123',abC123 , 'AbC123',AbC123 , 'aBC123',aBC123 , 'ABC123',ABC123
+		if ret_set:
+			return ret
+		return tuple(map(len, ret))
 	def region_analysis(self, p=95):
 		pass
 		# TODO
@@ -234,6 +223,29 @@ class gff3_interval:
 			outA[s:e,-2] = te_order_id
 			outA[s:e,-1] = te_sufam_id
 		return outA
+
+def _set_int(prior, second, p=95):
+	base = prior & second
+	outBase = prior & second
+	for tupP in prior - base:
+		for tupS in second - outBase:
+			if overlap_r(tupP, tupS, p):
+				outBase.add(tupP)
+				break
+	return outBase
+def _set_mutate(prior, second, p=95):
+	base = prior & second
+	outBase = prior & second
+	for tupS in second - base:
+		added = False
+		for tupP in prior - outBase:
+			if overlap_r(tupP, tupS, p):
+				outBase.add(tupP)
+				added = True
+				break
+		if not added:
+			outBase.add(tupS)
+	return outBase
 
 if __name__ == "__main__":
 	import doctest

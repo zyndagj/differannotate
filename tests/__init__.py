@@ -1,23 +1,27 @@
 #!/usr/bin/env python
 
 import unittest, sys, os, logging
+from operator import itemgetter
+logger = logging.getLogger(__name__)
 from glob import glob
 from time import time
 from shutil import rmtree
-import numpy as np
 try:
+	print "Detected python 2"
 	from StringIO import StringIO
-	from unittest.mock import patch
-except:
-	from io import StringIO
 	from mock import patch
+except:
+	print "Detected python 3"
+	from io import StringIO
+	from unittest.mock import patch
 # Create root logger before main import
 from differannotate.constants import FORMAT
 logStream = StringIO()	# buffer for capturing log info
-logging.basicConfig(stream=logStream, level=logging.DEBUG, format=FORMAT)
-
+logging.basicConfig(stream=logStream, level=logging.INFO, format=FORMAT)
+import numpy as np
+from quicksect import Interval
 import differannotate
-from differannotate import reader, comparisons
+from differannotate import reader, comparisons, summaries, datastructures
 
 class TestReader(unittest.TestCase):
 	def setUp(self):
@@ -62,7 +66,7 @@ class TestReader(unittest.TestCase):
 		logStream.truncate(0) # Wipe log
 		#if os.path.exists('mse_tmp'): rmtree('mse_tmp')
 	def test_dict_index(self):
-		DI = reader.dict_index()
+		DI = datastructures.dict_index()
 		self.assertEqual(DI['cat'], 0)
 		self.assertEqual(DI['bear'], 1)
 		self.assertEqual(DI['cat'], 0)
@@ -75,7 +79,7 @@ class TestReader(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			DI.getkey('dog')
 	def test_iterit(self):
-		IIT = reader.iterit()
+		IIT = datastructures.iterit()
 		IIT.add(10, 100)
 		self.assertEqual(IIT.max, 100)
 		self.assertEqual(IIT.min, 10)
@@ -83,6 +87,33 @@ class TestReader(unittest.TestCase):
 		self.assertEqual(IIT.max, 100)
 		self.assertEqual(IIT.min, 4)
 		self.assertEqual(len(list(IIT.iterintervals())), 2)
+	def test_iifilter(self):
+		IIT = datastructures.iterit()
+		IIT.add(0, 10, (0, 0))
+		IIT.add(5, 15, (1, 1))
+		IIT.add(10, 20, (1, 2))
+		IIT.add(10, 20, (1, 2, 1))
+		ret = map(datastructures.interval2tuple, IIT.iifilter(1, 1))
+		self.assertEqual(len(ret), 1)
+		self.assertEqual(ret[0], (5, 15, 1, 1))
+		ret = map(datastructures.interval2tuple, IIT.iifilter(2, 1, strand=0))
+		self.assertEqual(len(ret), 0)
+		ret = map(datastructures.interval2tuple, IIT.iifilter(2, 1, strand=1))
+		self.assertEqual(len(ret), 2)
+		ret = map(datastructures.interval2tuple, IIT.iifilter(1, 2, strand=1))
+		self.assertEqual(len(ret), 1)
+		self.assertEqual(ret[0], (10, 20, 1, 2, 1))
+	def test_searchfilter(self):
+		IIT = datastructures.iterit()
+		IIT.add(0, 10, (0, 0))
+		IIT.add(5, 15, (1, 1))
+		IIT.add(10, 20, (2, 1))
+		IIT.add(10, 20, (2, 1, 1))
+		ret = map(reader.interval2tuple, IIT.searchfilter(6,6,1,1))
+		self.assertEqual(len(ret), 1)
+		self.assertEqual(ret[0], (5, 15, 1, 1))
+		ret = map(reader.interval2tuple, IIT.searchfilter(10,11,1,2))
+		self.assertEqual(len(ret), 1)
 	def test_gff3_1_nofa(self):
 		GI = reader.gff3_interval(self.gff3_1)
 		self._test_elem_sets(GI)
@@ -121,7 +152,7 @@ class TestReader(unittest.TestCase):
 				self.assertEqual(a.shape, (2, self.gff3_max['Chr1']))
 				self.assertEqual(np.sum(a[0,:]), self.elems_sum1[elem][i])
 				self.assertEqual(np.sum(a[1,:]), self.elems_sum2[elem][i])
-	def test_gff3_12_nofa(self):
+	def test_gff3_12_fa(self):
 		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
 		GI.add_gff3(self.gff3_2, 'treat')
 		self._test_elem_sets(GI)
@@ -135,6 +166,53 @@ class TestReader(unittest.TestCase):
 				self.assertEqual(a.shape, (2, self.fa_max['Chr1']))
 				self.assertEqual(np.sum(a[0,:]), self.elems_sum1[elem][i])
 				self.assertEqual(np.sum(a[1,:]), self.elems_sum2[elem][i])
+	def test_gff3_12_fa_region_2_gene(self):
+		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
+		GI.add_gff3(self.gff3_2, 'treat')
+		ret = GI.calc_intersect_2('Chr1',  'control', 'treat', GI.element_dict['gene'], 1, p=99)
+		self.assertEquals(ret, (1,1,1))
+	def test_gff3_12_fa_region_2_gene_strand(self):
+		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
+		GI.add_gff3(self.gff3_2, 'treat')
+		self.assertEquals(GI.calc_intersect_2('Chr1',  'control', 'treat', 'gene', 1, p=99, strand='+'), (0,0,1))
+		self.assertEquals(GI.calc_intersect_2('Chr1',  'control', 'treat', 'gene', 1, p=99, strand='-'), (1,1,0))
+		self.assertEquals(GI.calc_intersect_2('Chr1',  'control', 'treat', 'gene', 1, p=99, strand=0), (0,0,1))
+		self.assertEquals(GI.calc_intersect_2('Chr1',  'control', 'treat', 'gene', 1, p=99, strand=1), (1,1,0))
+	def test_gff3_12_fa_region_2_error(self):
+		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
+		GI.add_gff3(self.gff3_2, 'treat')
+		with self.assertRaises(AssertionError):
+			GI.calc_intersect_2('Chr2',  'control', 'treat', GI.element_dict['gene'], 1, p=99)
+	def test_gff3_12_fa_region_2(self):
+		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
+		GI.add_gff3(self.gff3_2, 'treat')
+		func = GI.calc_intersect_2
+		self.assertEquals(func('Chr1',  'control', 'treat', 'gene', 1, p=99), (1,1,1))
+		self.assertEquals(func('Chr1',  'control', 'treat', 'cds', 1, p=50), (0,0,0))
+		self.assertEquals(func('Chr1',  'control', 'treat', 'lnc_rna', 1, p=99), (0,0,1))
+		self.assertEquals(func('Chr1',  'control', 'treat', 'antisense_lncrna', 1, p=99), (0,0,1))
+		self.assertEquals(func('Chr1',  'control', 'treat', 'exon', 1, p=97), (1,1,1))
+		self.assertEquals(func('Chr1',  'control', 'treat', 'exon', 1, p=96), (0,0,2))
+		self.assertEquals(func('Chr1',  'control', 'treat', 'protein', 1, p=50), (1,0,0))
+	def test_gff3_122_fa_region_3(self):
+		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
+		GI.add_gff3(self.gff3_2, 'treat1')
+		GI.add_gff3(self.gff3_2, 'treat2')
+		func = GI.calc_intersect_3
+		args = ('Chr1', 'control', 'treat1', 'treat2')
+		self.assertEquals(func(*args, elem='gene', col=1, p=99), (1,0,0,0,0,1,1))
+		self.assertEquals(func('Chr1',  'control','treat1','treat2', 'cds', 1, p=50), \
+			(0,0,0,0,0,0,0))
+		self.assertEquals(func('Chr1',  'control','treat1','treat2', 'lnc_rna', 1, p=99), \
+			(0,0,0,0,0,0,1))
+		self.assertEquals(func('Chr1',  'control','treat1','treat2', 'antisense_lncrna', 1, p=99), \
+			(0,0,0,0,0,0,1))
+		self.assertEquals(func('Chr1',  'control','treat1','treat2', 'exon', 1, p=97), \
+			(1,0,0,0,0,1,1))
+		self.assertEquals(func('Chr1',  'control','treat1','treat2', 'exon', 1, p=96), \
+			(0,0,0,0,0,0,2))
+		self.assertEquals(func('Chr1',  'control','treat1','treat2', 'protein', 1, p=50), \
+			(1,0,0,0,0,0,0))
 	def _test_elem_sets(self, GI):
 		self.assertEqual(set(GI.element_dict.keys()), set(self.elems_sum1.keys()))
 		self.assertEqual(set(GI.order_dict.keys()), set(self.order_sum1.keys()))
@@ -144,6 +222,11 @@ class TestReader(unittest.TestCase):
 		fa, ra = GI.elem_array(chrom, GI.element_dict[elem], col, True)
 		self.assertFalse(da)
 		return fa, ra, ba
+	def test_gff3_12_get_chrom_set(self):
+		GI = reader.gff3_interval(self.gff3_1)
+		self.assertEqual(GI.get_chrom_set(), set(('Chr1','Chr2')))
+		GI.add_gff3(self.gff3_2, 'treat')
+		self.assertEqual(GI.get_chrom_set(), set(('Chr1',)))
 class TestComparisons(unittest.TestCase):
 	def setUp(self):
 		tpath = os.path.dirname(__file__)
@@ -152,6 +235,9 @@ class TestComparisons(unittest.TestCase):
 		self.gff3_1 = os.path.join(tpath, 'test_1.gff3')
 		self.gff3_2 = os.path.join(tpath, 'test_2.gff3')
 		self.A = np.array([[1,1,0,0],[1,1,1,1],[0,1,1,0]])
+		self.i5 = (Interval(0,10), Interval(5,15))
+		self.i0 = (Interval(0,10), Interval(10,15))
+		self.i3 = (Interval(0,9), Interval(0,3))
 	def tearDown(self): ## Runs after every test function ##
 		logStream.truncate(0) # Wipe log
 		#if os.path.exists('mse_tmp'): rmtree('mse_tmp')
@@ -172,6 +258,65 @@ class TestComparisons(unittest.TestCase):
 	def test_precision(self):
 		self.assertTrue(np.array_equal(comparisons.precision(self.A), \
 			[2.0/(2+0), 2.0/(2+2), 1.0/(1+1)]))
+	def test_overlap_b(self):
+		self.assertEqual(comparisons._overlap_b(*self.i5), 5)
+		self.assertEqual(comparisons._overlap_b(*self.i0), 0)
+		self.assertEqual(comparisons._overlap_b(*self.i3), 3)
+	def test_overlap_p(self):
+		self.assertEqual(comparisons._overlap_p(*self.i5), 50)
+		self.assertEqual(comparisons._overlap_p(*self.i5[::-1]), 50)
+		self.assertEqual(comparisons._overlap_p(*self.i0), 0)
+		self.assertEqual(comparisons._overlap_p(*self.i3), float(1.0/3)*100.0)
+		self.assertEqual(comparisons._overlap_p(*self.i3[::-1]), 100)
+	def test_overlap(self):
+		self.assertEqual(comparisons.overlap(*self.i5, overlap_p=60), False)
+		self.assertEqual(comparisons.overlap(*self.i5, overlap_p=50), True)
+		self.assertEqual(comparisons.overlap(*self.i5[::-1], overlap_p=49), True)
+		self.assertEqual(comparisons.overlap(*self.i5[::-1], overlap_p=51), False)
+		self.assertEqual(comparisons.overlap(*self.i0, overlap_p=50), False)
+		self.assertEqual(comparisons.overlap(*self.i3, overlap_p=50), False)
+		self.assertEqual(comparisons.overlap(*self.i3, overlap_p=30), True)
+		self.assertEqual(comparisons.overlap(*self.i3[::-1], overlap_p=95), True)
+		with self.assertRaises(ValueError):
+			comparisons.overlap(*self.i3[::-1], overlap_p=0.5)
+	def test_overlap_p(self):
+		self.assertEqual(comparisons.overlap_r(*self.i5, overlap_p=40), True)
+		self.assertEqual(comparisons.overlap_r(*self.i5[::-1], overlap_p=40), True)
+		self.assertEqual(comparisons.overlap_r(*self.i0), False)
+		self.assertEqual(comparisons.overlap_r(*self.i0[::-1]), False)
+		self.assertEqual(comparisons.overlap_r(*self.i3, overlap_p=40), False)
+		self.assertEqual(comparisons.overlap_r(*self.i3, overlap_p=30),True)
+class TestSummaries(unittest.TestCase):
+	def setUp(self):
+		tpath = os.path.dirname(__file__)
+		self.fa = os.path.join(tpath, 'test.fa')
+		self.fai = os.path.join(tpath, 'test.fa.fai')
+		self.gff3_1 = os.path.join(tpath, 'test_1.gff3')
+		self.gff3_2 = os.path.join(tpath, 'test_2.gff3')
+	def test_gff3_12_tabular(self):
+		GI = reader.gff3_interval(self.gff3_1)
+		GI.add_gff3(self.gff3_2, 'treat')
+		print("")
+		summaries.tabular(GI)
+		for chrom in GI.get_chrom_set():
+			for d in (GI.element_dict, GI.order_dict, GI.sufam_dict):
+				for elem in d:
+					for strand in '+-B':
+						image = 'base_%s_%s_%s.png'%(chrom, strand, elem)
+						self.assertTrue(os.path.exists(image))
+						os.remove(image)
+	def test_gff3_12_tabular_region(self):
+		GI = reader.gff3_interval(self.gff3_1)
+		GI.add_gff3(self.gff3_2, 'treat')
+		print("")
+		summaries.tabular_region(GI, p=94)
+		for chrom in GI.get_chrom_set():
+			for d in (GI.element_dict, GI.order_dict, GI.sufam_dict):
+				for elem in d:
+					for strand in '+-B':
+						image = 'region_%s_%s_%s.png'%(chrom, strand, elem)
+						self.assertTrue(os.path.exists(image))
+						os.remove(image)
 #	def test_train_cli_01(self):
 #		if not self.test_model: return
 #		testArgs = ['teamRNN', \
