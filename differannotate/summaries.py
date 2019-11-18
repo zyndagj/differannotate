@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 11/15/2019
+# Last Modified: 11/18/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -47,7 +47,7 @@ import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
 import numpy as np
 
-def tabular_region(GI, p=95):
+def tabular_region(GI, p=95, fig_ext='png'):
 	chrom_set = GI.get_chrom_set()	# intersecting set chroms from all files
 	max_chrom_len = max(map(len, chrom_set)+[len("Chrom")])
 	max_elem_len = max(map(len, list(GI.element_dict)+list(GI.order_dict)+list(GI.sufam_dict)))
@@ -56,10 +56,13 @@ def tabular_region(GI, p=95):
 	non_te_elements = set(GI.element_dict) - GI.te_names
 	te_elements = set(GI.element_dict) & GI.te_names
 	for chrom in chrom_set:
-		_print_table_region(GI, chrom, GI.element_dict, 1, max_chrom_len, max_elem_len, max_name_len, p)
-		_print_table_region(GI, chrom, GI.order_dict, 2, max_chrom_len, max_elem_len, max_name_len, p)
-		_print_table_region(GI, chrom, GI.sufam_dict, 3, max_chrom_len, max_elem_len, max_name_len, p)
-def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95):
+		_print_table_region(GI, chrom, GI.element_dict, 1, max_chrom_len, \
+			max_elem_len, max_name_len, p, fig_ext)
+		_print_table_region(GI, chrom, GI.order_dict, 2, max_chrom_len, \
+			max_elem_len, max_name_len, p, fig_ext)
+		_print_table_region(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
+			max_elem_len, max_name_len, p, fig_ext)
+def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext='png'):
 	target = ("", "Element", "TE_Order", "TE_Superfamily")
 	mel = max(map(len, target)+[mel])
 	header = ("Chrom","S",target[col],"Sample","TP", "FP", "FN", "SENS", "PREC")
@@ -83,6 +86,11 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95):
 					print(template.format(chrom, sstr, elem, name, tp,fp,fn,sen,pre, mcl=mcl, mn=mnl, mel=mel))
 				else:
 					print(template.format('', '', '', name, tp,fp,fn,sen,pre, mcl=mcl, mn=mnl, mel=mel))
+			if not fig_ext: continue
+			# Generate figure
+			sstrand = 'B' if sstr == '+/-' else sstr
+			fig_name = "region_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
+			logger.debug("Generating %s"%(fig_name))
 			if len(GI.gff3_names) in (2,3):
 				plt.figure()
 				plt.title("%s %s %s"%(chrom, sstr, elem))
@@ -92,8 +100,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95):
 				if Ab or aB or AB:
 					venn2(subsets=ret, set_labels=GI.gff3_names)
 				else:
-					strand = 'B' if sstr == '+/-' else sstr
-					logger.warn("Empty plot for %s_%s_%s"%(chrom, strand, elem))
+					logger.warn("Empty plot for %s_%s_%s"%(chrom, sstrand, elem))
 			elif len(GI.gff3_names) == 3: # (Abc, aBc, ABc, abC, AbC, aBC, ABC)
 				n1, n2, n3 = GI.gff3_names
 				ret = GI.calc_intersect_2(chrom ,n1, n2, n3, eid, col, p, strand=sval)
@@ -103,11 +110,12 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95):
 					strand = 'B' if sstr == '+/-' else sstr
 					logger.warn("Empty plot for %s_%s_%s"%(chrom, strand, elem))
 			if len(GI.gff3_names) in (2,3):
-				plt.savefig("region_%s_%s_%s.png"%(chrom,'B' if sstr == '+/-' else sstr,elem))
+				
+				plt.savefig(fig_name)
 				plt.close()
 	print("")
 
-def tabular(GI, strand=True):
+def tabular(GI, strand=True, fig_ext='png'):
 	chrom_set = GI.get_chrom_set()	# intersecting set chroms from all files
 	max_chrom_len = max(map(len, chrom_set)+[len("Chrom")])
 	max_elem_len = max(map(len, list(GI.element_dict)+list(GI.order_dict)+list(GI.sufam_dict)))
@@ -116,11 +124,14 @@ def tabular(GI, strand=True):
 	non_te_elements = set(GI.element_dict)-GI.te_names
 	te_elements = set(GI.element_dict) & GI.te_names
 	for chrom in chrom_set:
-		_print_table(GI, chrom, GI.element_dict, 1, max_chrom_len, max_elem_len, max_name_len)
-		_print_table(GI, chrom, GI.order_dict, 2, max_chrom_len, max_elem_len, max_name_len)
-		_print_table(GI, chrom, GI.sufam_dict, 3, max_chrom_len, max_elem_len, max_name_len)
+		_print_table(GI, chrom, GI.element_dict, 1, max_chrom_len, \
+			max_elem_len, max_name_len, fig_ext)
+		_print_table(GI, chrom, GI.order_dict, 2, max_chrom_len, \
+			max_elem_len, max_name_len, fig_ext)
+		_print_table(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
+			max_elem_len, max_name_len, fig_ext)
 				
-def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl):
+def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png'):
 	target = ("", "Element", "TE_Order", "TE_Superfamily")
 	mel = max(map(len, target)+[mel])
 	header = ("Chrom","S",target[col],"Sample","TP", "FP", "TN", "FN", "SENS", "SPEC", "PREC")
@@ -136,20 +147,22 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl):
 					print(template.format(chrom, s, elem, name, tp[i],fp[i],tn[i],fn[i],sen[i],spe[i],pre[i], mcl=mcl, mn=mnl, mel=mel))
 				else:
 					print(template.format('','','', name, tp[i],fp[i],tn[i],fn[i],sen[i],spe[i],pre[i], mcl=mcl, mn=mnl, mel=mel))
-			if A.shape[0] in (2,3):
-				plt.figure()
-				plt.title("%s %s %s"%(chrom, s, elem))
+			if not fig_ext or A.shape[0] not in (2,3): continue
+			# Generate figure
+			strand = 'B' if s == '+/-' else s
+			fig_name = "base_%s_%s_%s.%s"%(chrom, strand, elem, fig_ext)
+			logger.debug("Generating %s"%(fig_name))
+			plt.figure()
+			plt.title("%s %s %s"%(chrom, s, elem))
 			if A.shape[0] == 2: # (Ab, aB, AB)
 				Ab = _venn2_helper(A, 1, 0)
 				aB = _venn2_helper(A, 0, 1)
 				AB = _venn2_helper(A, 1, 1)
-				assert(Ab == fn[1])
-				assert(aB == fp[1])
-				assert(AB == tp[1])
+				venn_sets = (Ab, aB, AB)
+				assert(venn_sets == (fn[1], fp[1], tp[1]))
 				if A.sum():
-					venn2(subsets=(fn[1], fp[1], tp[1]), set_labels=GI.gff3_names)
+					venn2(subsets=venn_sets, set_labels=GI.gff3_names)
 				else:
-					strand = 'B' if s == '+/-' else s
 					logger.warn("Empty plot for %s_%s_%s"%(chrom, strand, elem))
 			elif A.shape[0] == 3: # (Abc, aBc, ABc, abC, AbC, aBC, ABC)
 				Abc = _venn3_helper(A, 1, 0, 0)
@@ -162,11 +175,9 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl):
 				if A.sum():
 					venn3(subsets=(Abc, aBc, ABc, abC, AbC, aBC, ABC), set_labels=GI.gff3_names)
 				else:
-					strand = 'B' if s == '+/-' else s
 					logger.warn("Empty plot for %s_%s_%s"%(chrom, strand, elem))
-			if A.shape[0] in (2,3):
-				plt.savefig("base_%s_%s_%s.png"%(chrom,'B' if s == '+/-' else s,elem))
-				plt.close()
+			plt.savefig(fig_name)
+			plt.close()
 	print("")
 
 def _venn3_helper(array, rv0=1, rv1=0, rv2=0):

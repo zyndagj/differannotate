@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 11/15/2019
+# Last Modified: 11/18/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -104,7 +104,7 @@ def _overlap_p(A, B):
 		size_A = A[1] - A[0]
 	else:
 		raise TypeError(A)
-	logger.error("TEST")
+	logger.info("TEST")
 	return float(bases_overlap)/float(size_A)*100.0
 
 def overlap(A, B, overlap_p=95):

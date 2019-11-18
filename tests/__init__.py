@@ -2,7 +2,6 @@
 
 import unittest, sys, os, logging
 from operator import itemgetter
-logger = logging.getLogger(__name__)
 from glob import glob
 from time import time
 from shutil import rmtree
@@ -15,8 +14,9 @@ except:
 	from io import StringIO
 	from unittest.mock import patch
 # Create root logger before main import
-from differannotate.constants import FORMAT
 logStream = StringIO()	# buffer for capturing log info
+logger = logging.getLogger(__name__)
+FORMAT = "[%(levelname)s - %(filename)s:%(lineno)s - %(funcName)15s] %(message)s"
 logging.basicConfig(stream=logStream, level=logging.INFO, format=FORMAT)
 import numpy as np
 from quicksect import Interval
