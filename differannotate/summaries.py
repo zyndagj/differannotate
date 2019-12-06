@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 11/18/2019
+# Last Modified: 12/05/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -74,6 +74,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 		#print col, eid
 		for sstr, sval in zip(('+/-','+','-'), (False, '+', '-')):
 			#if not np.sum(A): continue
+			length_array_dict = {}
 			for i, name in enumerate(GI.gff3_names):
 				Ab, aB, AB = GI.calc_intersect_2(chrom, cname, name, eid, col, p, strand=sval)
 				#if col == 2:
@@ -86,9 +87,19 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 					print(template.format(chrom, sstr, elem, name, tp,fp,fn,sen,pre, mcl=mcl, mn=mnl, mel=mel))
 				else:
 					print(template.format('', '', '', name, tp,fp,fn,sen,pre, mcl=mcl, mn=mnl, mel=mel))
+				# Store array of interval lengths
+				length_array_dict[name] = GI.get_length_array(chrom, name, eid, col, sval)
 			if not fig_ext: continue
-			# Generate figure
 			sstrand = 'B' if sstr == '+/-' else sstr
+			# Generate length boxplot
+			fig_name = "length_bp_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
+			plt.figure()
+			plt.boxplot(map(np.sqrt, length_array_dict.values()), labels=length_array_dict.keys())
+			plt.ylabel('sqrt(length)')
+			plt.title('%s %s %s length distribution'%(chrom, sstr, elem))
+			plt.savefig(fig_name)
+			plt.close()
+			# Generate venn figure
 			fig_name = "region_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
 			logger.debug("Generating %s"%(fig_name))
 			if len(GI.gff3_names) in (2,3):

@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 11/15/2019
+# Last Modified: 12/05/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -154,10 +154,7 @@ class gff3_interval:
 		else:
 			return p_array, []
 	def calc_intersect_2(self, chrom, name1, name2, elem, col, p=95, strand=False, ret_set=False):
-		try:
-			eid = int(elem)
-		except ValueError:
-			eid = self.element_dict[elem]
+		eid = self._get_eid(elem)
 		# (Ab, aB, AB)
 		for n in (name1, name2): assert(chrom in self.gff3_trees[n])
 		n1_tree = self.gff3_trees[name1][chrom]
@@ -184,10 +181,7 @@ class gff3_interval:
 		return len(n1_set), len(n2_set), len(n1_int_set)
 	def calc_intersect_3(self, chrom, name1, name2, name3, elem, col, p=95, strand=False, ret_set=False):
 		# (Abc, aBc, ABc, abC, AbC, aBC, ABC)
-		try:
-			eid = int(elem)
-		except ValueError:
-			eid = self.element_dict[elem]
+		eid = self._get_eid(elem)
 		for n in (name1, name2, name3): assert(chrom in self.gff3_trees[n])
 		n1_set = self.gff3_trees[name1][chrom].to_set(eid, col, strand)
 		func = self.calc_intersect_2
@@ -210,6 +204,9 @@ class gff3_interval:
 		if ret_set:
 			return ret
 		return tuple(map(len, ret))
+	def get_length_array(self, chrom, name, elem, col, strand=False):
+		eid = self._get_eid(elem)
+		return map(_tuple_size, self.gff3_trees[name][chrom].to_set(eid, col, strand))
 	def region_analysis(self, p=95):
 		pass
 		# TODO
@@ -223,6 +220,18 @@ class gff3_interval:
 			outA[s:e,-2] = te_order_id
 			outA[s:e,-1] = te_sufam_id
 		return outA
+	def _get_eid(self, elem):
+		try:
+			eid = int(elem)
+		except ValueError:
+			eid = self.element_dict[elem]
+		return eid
+
+def _tuple_size(interval_tuple):
+        return interval_tuple[1] - interval_tuple[0]
+
+def _map_size(interval_set):
+        return map(_tuple_size, interval_set)
 
 def _set_int(prior, second, p=95):
 	base = prior & second

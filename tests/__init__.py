@@ -103,6 +103,21 @@ class TestReader(unittest.TestCase):
 		ret = map(datastructures.interval2tuple, IIT.iifilter(1, 2, strand=1))
 		self.assertEqual(len(ret), 1)
 		self.assertEqual(ret[0], (10, 20, 1, 2, 1))
+	def test_tuple_size(self):
+		self.assertEqual(reader._tuple_size((0, 10, 0, 0)), 10)
+		self.assertEqual(reader._tuple_size((5, 15, 1, 1)), 10)
+		self.assertEqual(reader._tuple_size((10, 20, 1, 2)), 10)
+		self.assertEqual(reader._tuple_size((10, 20, 1, 2, 1)), 10)
+	def test_map_size(self):
+		IIT = datastructures.iterit()
+		IIT.add(0, 10, (0, 0))
+		IIT.add(5, 15, (1, 1))
+		IIT.add(10, 20, (1, 2))
+		IIT.add(10, 20, (1, 2, 1))
+		self.assertEqual(reader._map_size(IIT.to_set(1,1)), [10])
+		self.assertEqual(reader._map_size(IIT.to_set(2,1,strand=0)), [])
+		self.assertEqual(reader._map_size(IIT.to_set(2,1,strand=1)), [10,10])
+		self.assertEqual(reader._map_size(IIT.to_set(1,2,strand=1)), [10])
 	def test_searchfilter(self):
 		IIT = datastructures.iterit()
 		IIT.add(0, 10, (0, 0))
@@ -314,9 +329,10 @@ class TestSummaries(unittest.TestCase):
 			for d in (GI.element_dict, GI.order_dict, GI.sufam_dict):
 				for elem in d:
 					for strand in '+-B':
-						image = 'region_%s_%s_%s.png'%(chrom, strand, elem)
-						self.assertTrue(os.path.exists(image))
-						os.remove(image)
+						for prefix in ('region','length_bp'):
+							image = '%s_%s_%s_%s.png'%(prefix, chrom, strand, elem)
+							self.assertTrue(os.path.exists(image))
+							os.remove(image)
 #	def test_train_cli_01(self):
 #		if not self.test_model: return
 #		testArgs = ['teamRNN', \
