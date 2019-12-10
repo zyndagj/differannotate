@@ -108,6 +108,12 @@ class TestReader(unittest.TestCase):
 		self.assertEqual(reader._tuple_size((5, 15, 1, 1)), 10)
 		self.assertEqual(reader._tuple_size((10, 20, 1, 2)), 10)
 		self.assertEqual(reader._tuple_size((10, 20, 1, 2, 1)), 10)
+	def test_tuple_proportion(self):
+		#TATTAGGCTGTGATGTGCTT
+		#01234567890123456789
+		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
+		self.assertEqual(GI._tuple_proportion('Chr2', (0, 10, 0, 0)), (0.2,0.4,0.3,0.1))
+		self.assertEqual(GI._tuple_proportion('Chr2', (5, 15, 1, 1)), (0.1,0.3,0.5,0.1))
 	def test_map_size(self):
 		IIT = datastructures.iterit()
 		IIT.add(0, 10, (0, 0))
@@ -118,6 +124,16 @@ class TestReader(unittest.TestCase):
 		self.assertEqual(reader._map_size(IIT.to_set(2,1,strand=0)), [])
 		self.assertEqual(reader._map_size(IIT.to_set(2,1,strand=1)), [10,10])
 		self.assertEqual(reader._map_size(IIT.to_set(1,2,strand=1)), [10])
+	def test_get_proportion_arrays(self):
+		#TATTAGGCTGTGATGTGCTT
+		#01234567890123456789
+		#  ----- ------
+		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
+		prop_array = GI.get_proportion_arrays('Chr2', 'control', 'exon', 1, strand=False)
+		self.assertEqual(sorted(prop_array[0]), sorted([float(1)/5, float(1)/6])) #A
+		self.assertEqual(sorted(prop_array[1]), sorted([float(2)/5, float(3)/6])) #T
+		self.assertEqual(sorted(prop_array[2]), sorted([float(2)/5, float(2)/6])) #G
+		self.assertEqual(sorted(prop_array[3]), sorted([float(0)/5, float(0)/6])) #C
 	def test_searchfilter(self):
 		IIT = datastructures.iterit()
 		IIT.add(0, 10, (0, 0))
@@ -321,7 +337,7 @@ class TestSummaries(unittest.TestCase):
 						self.assertTrue(os.path.exists(image))
 						os.remove(image)
 	def test_gff3_12_tabular_region(self):
-		GI = reader.gff3_interval(self.gff3_1)
+		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
 		GI.add_gff3(self.gff3_2, 'treat')
 		print("")
 		summaries.tabular_region(GI, p=94)
@@ -329,7 +345,7 @@ class TestSummaries(unittest.TestCase):
 			for d in (GI.element_dict, GI.order_dict, GI.sufam_dict):
 				for elem in d:
 					for strand in '+-B':
-						for prefix in ('region','length_bp'):
+						for prefix in ('region','length_bp','proportion'):
 							image = '%s_%s_%s_%s.png'%(prefix, chrom, strand, elem)
 							self.assertTrue(os.path.exists(image))
 							os.remove(image)

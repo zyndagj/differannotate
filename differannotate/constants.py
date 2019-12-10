@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 10/24/2019
+# Last Modified: 12/09/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -37,6 +37,9 @@
 
 
 FORMAT = "[%(levelname)s - %(filename)s:%(lineno)s - %(funcName)15s] %(message)s"
+
+BaseIndex = {'A':0, 'T':1, 'G':2, 'C':3, \
+	0:'A', 1:'T', 2:'G', 3:'C'}
 
 def main():
 	pass

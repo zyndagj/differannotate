@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/05/2019
+# Last Modified: 12/10/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -36,7 +36,7 @@
 ###############################################################################
 
 import logging
-from .constants import FORMAT
+from .constants import FORMAT, BaseIndex
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN, format=FORMAT)
 
@@ -75,6 +75,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 		for sstr, sval in zip(('+/-','+','-'), (False, '+', '-')):
 			#if not np.sum(A): continue
 			length_array_dict = {}
+			proportion_array_dict = {}
 			for i, name in enumerate(GI.gff3_names):
 				Ab, aB, AB = GI.calc_intersect_2(chrom, cname, name, eid, col, p, strand=sval)
 				#if col == 2:
@@ -89,6 +90,8 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 					print(template.format('', '', '', name, tp,fp,fn,sen,pre, mcl=mcl, mn=mnl, mel=mel))
 				# Store array of interval lengths
 				length_array_dict[name] = GI.get_length_array(chrom, name, eid, col, sval)
+				if GI.FA:
+					proportion_array_dict[name] = GI.get_proportion_arrays(chrom, name, eid, col, sval)
 			if not fig_ext: continue
 			sstrand = 'B' if sstr == '+/-' else sstr
 			# Generate length boxplot
@@ -99,6 +102,31 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			plt.title('%s %s %s length distribution'%(chrom, sstr, elem))
 			plt.savefig(fig_name)
 			plt.close()
+			# Generate proportion boxplot
+			if GI.FA:
+				fig_name = "proportion_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
+				plt.figure()
+				colors = {'G':'gold', 'T':'tomato', 'A':'seagreen', 'C':'royalblue'}
+				space, width = 2.0/33, 4.0/33
+				pos_stop = space/2.0+width/2.0
+				pos = np.array([-3.0*pos_stop, -pos_stop, pos_stop, 3*pos_stop])
+				bpl = []
+				for i,name in enumerate(GI.gff3_names):
+					for j in range(4):
+						bp = plt.boxplot(proportion_array_dict[name][j], positions=[pos[j]+(i+1.0)], patch_artist=True, widths=[width], showfliers=False)
+						bpl.append(bp)
+						plt.setp(bpl[-1]["boxes"], facecolor=colors[BaseIndex[j]])
+				plt.xticks(np.arange(len(GI.gff3_names))+1, GI.gff3_names)
+				max_pro = 0.5
+				for pa in proportion_array_dict.values():
+					for a in pa:
+						if len(a) > 0: max_pro = max(max_pro, max(a))
+				plt.ylim(0, max_pro)
+				plt.xlim(0.5, len(GI.gff3_names)+0.5)
+				plt.ylabel('Proportion')
+				plt.title('%s %s %s Base Proportion'%(chrom, sstr, elem))
+				plt.savefig(fig_name)
+				plt.close()
 			# Generate venn figure
 			fig_name = "region_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
 			logger.debug("Generating %s"%(fig_name))
@@ -121,7 +149,6 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 					strand = 'B' if sstr == '+/-' else sstr
 					logger.warn("Empty plot for %s_%s_%s"%(chrom, strand, elem))
 			if len(GI.gff3_names) in (2,3):
-				
 				plt.savefig(fig_name)
 				plt.close()
 	print("")

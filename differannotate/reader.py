@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/05/2019
+# Last Modified: 12/10/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -37,8 +37,10 @@
 
 import logging, re, os
 import numpy as np
+from pysam import FastaFile
+from collections import Counter
 from collections import defaultdict as dd
-from differannotate.constants import FORMAT
+from differannotate.constants import FORMAT, BaseIndex
 from differannotate.datastructures import *
 from differannotate.comparisons import overlap_r
 
@@ -60,7 +62,10 @@ class gff3_interval:
 		self.include_chrom = include_chrom
 		self.chrom_lens = None
 		if fasta and os.path.exists(fasta+'.fai'):
+			self.FA = FastaFile(fasta)
 			self.chrom_lens = self._parse_fai(fasta+'.fai')
+		else:
+			self.FA = False
 		# create the initial interval tree
 		self.gff3_trees = {name:self._2tree(gff3)}
 		self.gff3_names = [name]
@@ -226,6 +231,24 @@ class gff3_interval:
 		except ValueError:
 			eid = self.element_dict[elem]
 		return eid
+	def get_proportion_arrays(self, chrom, name, elem, col, strand=False):
+		eid = self._get_eid(elem)
+		interval_set = self.gff3_trees[name][chrom].to_set(eid, col, strand)
+		if not interval_set: return [[],[],[],[]]
+		proportion_arrays = zip(*map(lambda x: self._tuple_proportion(chrom, x), interval_set))
+		assert(len(interval_set) == len(proportion_arrays[0]))
+		return proportion_arrays
+	def _tuple_proportion(self, chrom, interval_tuple):
+		start, end = interval_tuple[0], interval_tuple[1]
+		seq = self.FA.fetch(chrom, start, end).upper()
+		assert(len(seq) == end - start)
+		count_dict = Counter(seq)
+		total = sum(count_dict.values())
+		return tuple((float(count_dict[base])/total for base in ('A','T','G','C')))
+	#A	G	C	T	Total	A	G	C	T	Total
+	#2	6	5	3		0.125	0.375	0.3125	0.1875	1
+	#30	10	11	26		0.38961	0.12987	0.14285	0.33766	1
+	#0.3440	0.17204	0.17204	0.31182	1	0.25730	0.25243	0.22767	0.26258	1 Proportion Calculation
 
 def _tuple_size(interval_tuple):
         return interval_tuple[1] - interval_tuple[0]
