@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/11/2019
+# Last Modified: 12/12/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -133,7 +133,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			fig_name = "region_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
 			logger.debug("Generating %s"%(fig_name))
 			if len(GI.gff3_names) in (2,3):
-				plt.figure(dpi=200)
+				plt.figure(figsize=(4,4), dpi=200)
 				plt.title("%s %s %s"%(chrom, sstr, elem))
 			if len(GI.gff3_names) == 2: # (Ab, aB, AB)
 				n1, n2 = GI.gff3_names
@@ -194,7 +194,7 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png'):
 			strand = 'B' if s == '+/-' else s
 			fig_name = "base_%s_%s_%s.%s"%(chrom, strand, elem, fig_ext)
 			logger.debug("Generating %s"%(fig_name))
-			plt.figure(dpi=200)
+			plt.figure(figsize=(4,4), dpi=200)
 			plt.title("%s %s %s"%(chrom, s, elem))
 			if A.shape[0] == 2: # (Ab, aB, AB)
 				Ab = _venn2_helper(A, 1, 0)
