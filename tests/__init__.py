@@ -330,26 +330,42 @@ class TestSummaries(unittest.TestCase):
 		print("")
 		summaries.tabular(GI, temd=True)
 		for chrom in GI.get_chrom_set():
-			for d in (GI.element_dict, GI.order_dict, GI.sufam_dict):
+			for col, d in enumerate((GI.element_dict, GI.order_dict, GI.sufam_dict)):
 				for elem in d:
-					for strand in '+-B':
+					fa, ra, ba = summaries._gen_arrays(GI, chrom, elem, col+1)
+					for strand, A in zip(('+','-','B'), (fa,ra,ba)):
+						tp, fp, tn, fn, sen, spe, pre = summaries._calc_stats(A)
+						if not (tp[1:].sum() or fp[1:].sum()): continue
 						image = 'base_%s_%s_%s.png'%(chrom, strand, elem)
 						if not os.path.exists(image): print("%s does not exist"%(image))
 						self.assertTrue(os.path.exists(image))
 						os.remove(image)
+		self.assertFalse(glob('base*png'))
 	def test_gff3_12_tabular_region(self):
 		GI = reader.gff3_interval(self.gff3_1, fasta=self.fa)
 		GI.add_gff3(self.gff3_2, 'treat')
 		print("")
 		summaries.tabular_region(GI, p=94)
+		cname = GI.gff3_names[0]
 		for chrom in GI.get_chrom_set():
 			for elem in GI.element_dict:
-				for strand in '+-B':
+				eid = GI.element_dict[elem]
+				for strand,sval in zip('+-B', ('+','-',False)):
+					tp_list, fp_list = [], []
+					for name in GI.gff3_names[1:]:
+						Ab, aB, AB = GI.calc_intersect_2(chrom, cname, name, eid, 1, 94, strand=sval)
+						tp, fp, fn, sen, pre = summaries._calc_stats_region(Ab, aB, AB)
+						tp_list.append(tp)
+						fp_list.append(fp)
+					if not (sum(tp_list) or sum(fp_list)): continue
 					for prefix in ('region','length_bp','proportion'):
 						image = '%s_%s_%s_%s.png'%(prefix, chrom, strand, elem)
 						if not os.path.exists(image): print("%s does not exist"%(image))
 						self.assertTrue(os.path.exists(image))
 						os.remove(image)
+		self.assertFalse(glob('region*png'))
+		self.assertFalse(glob('length_bp*png'))
+		self.assertFalse(glob('proportion*png'))
 #	def test_train_cli_01(self):
 #		if not self.test_model: return
 #		testArgs = ['teamRNN', \

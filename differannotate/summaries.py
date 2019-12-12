@@ -78,6 +78,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			#if not np.sum(A): continue
 			length_array_dict = {}
 			proportion_array_dict = {}
+			tp_list, fp_list = [], []
 			for i, name in enumerate(GI.gff3_names):
 				Ab, aB, AB = GI.calc_intersect_2(chrom, cname, name, eid, col, p, strand=sval)
 				#if col == 2:
@@ -86,6 +87,9 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 				#	print "%s-%s"%(cname, name.upper()), saB
 				#	print "%s-%s"%(cname.upper(), name.upper()), sAB
 				tp, fp, fn, sen, pre = _calc_stats_region(Ab, aB, AB)
+				if i != 0:
+					tp_list.append(tp)
+					fp_list.append(fp)
 				if not i:
 					print(template.format(chrom, sstr, elem, name, tp,fp,fn,sen,pre, mcl=mcl, mn=mnl, mel=mel))
 				else:
@@ -94,7 +98,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 				length_array_dict[name] = GI.get_length_array(chrom, name, eid, col, sval)
 				if GI.FA:
 					proportion_array_dict[name] = GI.get_proportion_arrays(chrom, name, eid, col, sval)
-			if not fig_ext: continue
+			if not fig_ext or not (sum(tp_list) or sum(fp_list)): continue
 			sstrand = 'B' if sstr == '+/-' else sstr
 			# Generate length boxplot
 			fig_name = "length_bp_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
@@ -130,6 +134,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 				plt.savefig(fig_name)
 				plt.close()
 			# Generate venn figure
+			if len(GI.gff3_names) not in (2,3): continue
 			fig_name = "region_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
 			logger.debug("Generating %s"%(fig_name))
 			if len(GI.gff3_names) in (2,3):
@@ -189,7 +194,7 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png'):
 					print(template.format(chrom, s, elem, name, tp[i],fp[i],tn[i],fn[i],sen[i],spe[i],pre[i], mcl=mcl, mn=mnl, mel=mel))
 				else:
 					print(template.format('','','', name, tp[i],fp[i],tn[i],fn[i],sen[i],spe[i],pre[i], mcl=mcl, mn=mnl, mel=mel))
-			if not fig_ext or A.shape[0] not in (2,3): continue
+			if not fig_ext or A.shape[0] not in (2,3) or not (tp[1:].sum() or fp[1:].sum()): continue
 			# Generate figure
 			strand = 'B' if s == '+/-' else s
 			fig_name = "base_%s_%s_%s.%s"%(chrom, strand, elem, fig_ext)
