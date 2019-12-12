@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/10/2019
+# Last Modified: 12/11/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -35,17 +35,20 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ###############################################################################
 
-import logging, re, os
+import logging, re, os, sys
 import numpy as np
+import multiprocessing as mp
+from functools import partial
 from pysam import FastaFile
 from collections import Counter
 from collections import defaultdict as dd
 from differannotate.constants import FORMAT, BaseIndex
-from differannotate.datastructures import *
-from differannotate.comparisons import overlap_r
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN, format=FORMAT)
+
+from differannotate.datastructures import *
+from differannotate.comparisons import overlap_r, _overlap_r_tup
 
 class gff3_interval:
 	def __init__(self, gff3, name='control', fasta=None, include_chrom=False, force=False, \
@@ -61,14 +64,19 @@ class gff3_interval:
 		self.te_names = set(te_names)
 		self.include_chrom = include_chrom
 		self.chrom_lens = None
+		self.FA = False
+		self.pool = False
 		if fasta and os.path.exists(fasta+'.fai'):
 			self.FA = FastaFile(fasta)
 			self.chrom_lens = self._parse_fai(fasta+'.fai')
-		else:
-			self.FA = False
+			self.pool = mp.Pool(4, worker_init, (fasta,))
 		# create the initial interval tree
 		self.gff3_trees = {name:self._2tree(gff3)}
 		self.gff3_names = [name]
+	def __del__(self):
+		if self.pool:
+			self.pool.close()
+			self.pool.join()
 	def _parse_fai(self, fai_file):
 		'''
 		Parses a fa.fai into a python dictionary
@@ -91,7 +99,11 @@ class gff3_interval:
 		with open(gff3,'r') as IF:
 			for line in filter(lambda x: x[0] != "#", IF):
 				tmp = line.rstrip('\n').split('\t')
-				chrom, strand, element, attributes = tmp[0], tmp[6], tmp[2].lower(), tmp[8]
+				try:
+					chrom, strand, element, attributes = tmp[0], tmp[6], tmp[2].lower(), tmp[8]
+				except:
+					print(tmp)
+					sys.exit(1)
 				if element not in exclude:
 					element_id = self.element_dict[element]
 					strand_id = self.strand_dict[strand]
@@ -169,12 +181,12 @@ class gff3_interval:
 		n2_set = n2_tree.to_set(eid, col, strand)	#aB
 		# Used
 		n1_int_set, n2_int_set = set(), set()	#AB
-		for interval in n1_tree.iifilter(eid, col, strand):
-			interval_tup = interval2tuple(interval)
-			n1_s, n1_e = interval.start, interval.end
-			for n2int in n2_tree.searchfilter(n1_s, n1_e, eid, col, strand):
-				n2int_tup = interval2tuple(n2int)
-				if n2int_tup in n2_set and overlap_r(interval, n2int, p):
+		for interval_tup in map(interval2tuple, n1_tree.iifilter(eid, col, strand)):
+			if interval_tup in n1_int_set:
+				continue
+			n1_s, n1_e = interval_tup[0], interval_tup[1]
+			for n2int_tup in map(interval2tuple, n2_tree.searchfilter(n1_s, n1_e, eid, col, strand)):
+				if n2int_tup in n2_set and _overlap_r_tup(interval_tup, n2int_tup, p):
 					n1_int_set.add(interval_tup)
 					n1_set.remove(interval_tup)
 					n2_int_set.add(n2int_tup)
@@ -235,7 +247,11 @@ class gff3_interval:
 		eid = self._get_eid(elem)
 		interval_set = self.gff3_trees[name][chrom].to_set(eid, col, strand)
 		if not interval_set: return [[],[],[],[]]
-		proportion_arrays = zip(*map(lambda x: self._tuple_proportion(chrom, x), interval_set))
+		if self.pool:
+			partial_wtp = partial(worker_tuple_proportion, chrom=chrom)
+			proportion_arrays = zip(*self.pool.imap(partial_wtp, interval_set, chunksize=10))
+		else:
+			proportion_arrays = zip(*map(lambda x: self._tuple_proportion(chrom, x), interval_set))
 		assert(len(interval_set) == len(proportion_arrays[0]))
 		return proportion_arrays
 	def _tuple_proportion(self, chrom, interval_tuple):
@@ -250,6 +266,17 @@ class gff3_interval:
 	#30	10	11	26		0.38961	0.12987	0.14285	0.33766	1
 	#0.3440	0.17204	0.17204	0.31182	1	0.25730	0.25243	0.22767	0.26258	1 Proportion Calculation
 
+def worker_init(fasta):
+	global FA
+	FA = FastaFile(fasta)
+def worker_tuple_proportion(interval_tuple, chrom):
+	start, end = interval_tuple[0], interval_tuple[1]
+	seq = FA.fetch(chrom, start, end).upper()
+	assert(len(seq) == end - start)
+	count_dict = Counter(seq)
+	total = sum(count_dict.values())
+	return tuple((float(count_dict[base])/total for base in ('A','T','G','C')))
+
 def _tuple_size(interval_tuple):
         return interval_tuple[1] - interval_tuple[0]
 
@@ -261,7 +288,7 @@ def _set_int(prior, second, p=95):
 	outBase = prior & second
 	for tupP in prior - base:
 		for tupS in second - outBase:
-			if overlap_r(tupP, tupS, p):
+			if _overlap_r_tup(tupP, tupS, p):
 				outBase.add(tupP)
 				break
 	return outBase
@@ -271,7 +298,7 @@ def _set_mutate(prior, second, p=95):
 	for tupS in second - base:
 		added = False
 		for tupP in prior - outBase:
-			if overlap_r(tupP, tupS, p):
+			if _overlap_r_tup(tupP, tupS, p):
 				outBase.add(tupP)
 				added = True
 				break

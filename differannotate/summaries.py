@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/10/2019
+# Last Modified: 12/11/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -35,7 +35,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ###############################################################################
 
-import logging
+import logging, sys
 from .constants import FORMAT, BaseIndex
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN, format=FORMAT)
@@ -46,8 +46,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
 import numpy as np
+from time import time
 
-def tabular_region(GI, p=95, fig_ext='png'):
+def tabular_region(GI, p=95, fig_ext='png', temd=False):
 	chrom_set = GI.get_chrom_set()	# intersecting set chroms from all files
 	max_chrom_len = max(map(len, chrom_set)+[len("Chrom")])
 	max_elem_len = max(map(len, list(GI.element_dict)+list(GI.order_dict)+list(GI.sufam_dict)))
@@ -58,10 +59,11 @@ def tabular_region(GI, p=95, fig_ext='png'):
 	for chrom in chrom_set:
 		_print_table_region(GI, chrom, GI.element_dict, 1, max_chrom_len, \
 			max_elem_len, max_name_len, p, fig_ext)
-		_print_table_region(GI, chrom, GI.order_dict, 2, max_chrom_len, \
-			max_elem_len, max_name_len, p, fig_ext)
-		_print_table_region(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
-			max_elem_len, max_name_len, p, fig_ext)
+		if temd:
+			_print_table_region(GI, chrom, GI.order_dict, 2, max_chrom_len, \
+				max_elem_len, max_name_len, p, fig_ext)
+			_print_table_region(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
+				max_elem_len, max_name_len, p, fig_ext)
 def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext='png'):
 	target = ("", "Element", "TE_Order", "TE_Superfamily")
 	mel = max(map(len, target)+[mel])
@@ -96,7 +98,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			sstrand = 'B' if sstr == '+/-' else sstr
 			# Generate length boxplot
 			fig_name = "length_bp_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
-			plt.figure()
+			plt.figure(dpi=200)
 			plt.boxplot(map(np.sqrt, length_array_dict.values()), labels=length_array_dict.keys())
 			plt.ylabel('sqrt(length)')
 			plt.title('%s %s %s length distribution'%(chrom, sstr, elem))
@@ -105,7 +107,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			# Generate proportion boxplot
 			if GI.FA:
 				fig_name = "proportion_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
-				plt.figure()
+				plt.figure(dpi=200)
 				colors = {'G':'gold', 'T':'tomato', 'A':'seagreen', 'C':'royalblue'}
 				space, width = 2.0/33, 4.0/33
 				pos_stop = space/2.0+width/2.0
@@ -131,19 +133,19 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			fig_name = "region_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
 			logger.debug("Generating %s"%(fig_name))
 			if len(GI.gff3_names) in (2,3):
-				plt.figure()
+				plt.figure(dpi=200)
 				plt.title("%s %s %s"%(chrom, sstr, elem))
 			if len(GI.gff3_names) == 2: # (Ab, aB, AB)
 				n1, n2 = GI.gff3_names
-				ret = GI.calc_intersect_2(chrom ,n1, n2, eid, col, p, strand=sval)
+				ret = GI.calc_intersect_2(chrom, n1, n2, eid, col, p, strand=sval)
 				if Ab or aB or AB:
 					venn2(subsets=ret, set_labels=GI.gff3_names)
 				else:
 					logger.warn("Empty plot for %s_%s_%s"%(chrom, sstrand, elem))
 			elif len(GI.gff3_names) == 3: # (Abc, aBc, ABc, abC, AbC, aBC, ABC)
 				n1, n2, n3 = GI.gff3_names
-				ret = GI.calc_intersect_2(chrom ,n1, n2, n3, eid, col, p, strand=sval)
-				if sum(ret):
+				ret = GI.calc_intersect_3(chrom, n1, n2, n3, eid, col, p, strand=sval)
+				if np.sum(ret):
 					venn3(subsets=ret, set_labels=GI.gff3_names)
 				else:
 					strand = 'B' if sstr == '+/-' else sstr
@@ -152,8 +154,9 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 				plt.savefig(fig_name)
 				plt.close()
 	print("")
+	logger.info("Finished region table")
 
-def tabular(GI, strand=True, fig_ext='png'):
+def tabular(GI, strand=True, fig_ext='png', temd=False):
 	chrom_set = GI.get_chrom_set()	# intersecting set chroms from all files
 	max_chrom_len = max(map(len, chrom_set)+[len("Chrom")])
 	max_elem_len = max(map(len, list(GI.element_dict)+list(GI.order_dict)+list(GI.sufam_dict)))
@@ -164,16 +167,17 @@ def tabular(GI, strand=True, fig_ext='png'):
 	for chrom in chrom_set:
 		_print_table(GI, chrom, GI.element_dict, 1, max_chrom_len, \
 			max_elem_len, max_name_len, fig_ext)
-		_print_table(GI, chrom, GI.order_dict, 2, max_chrom_len, \
-			max_elem_len, max_name_len, fig_ext)
-		_print_table(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
-			max_elem_len, max_name_len, fig_ext)
+		if temd:
+			_print_table(GI, chrom, GI.order_dict, 2, max_chrom_len, \
+				max_elem_len, max_name_len, fig_ext)
+			_print_table(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
+				max_elem_len, max_name_len, fig_ext)
 				
 def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png'):
 	target = ("", "Element", "TE_Order", "TE_Superfamily")
 	mel = max(map(len, target)+[mel])
 	header = ("Chrom","S",target[col],"Sample","TP", "FP", "TN", "FN", "SENS", "SPEC", "PREC")
-	template = "{:<{mcl}} {:^3} {:<{mel}} {:<{mn}} "+' '.join(["{:>5}"]*7)
+	template = "{:<{mcl}} {:^3} {:<{mel}} {:<{mn}} "+' '.join(["{:>8}"]*7)
 	print(template.format(*header, mcl=mcl, mn=mnl, mel=mel))
 	for elem in elem_list:
 		fa, ra, ba = _gen_arrays(GI, chrom, elem, col)
@@ -190,7 +194,7 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png'):
 			strand = 'B' if s == '+/-' else s
 			fig_name = "base_%s_%s_%s.%s"%(chrom, strand, elem, fig_ext)
 			logger.debug("Generating %s"%(fig_name))
-			plt.figure()
+			plt.figure(dpi=200)
 			plt.title("%s %s %s"%(chrom, s, elem))
 			if A.shape[0] == 2: # (Ab, aB, AB)
 				Ab = _venn2_helper(A, 1, 0)
@@ -219,21 +223,28 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png'):
 	print("")
 
 def _venn3_helper(array, rv0=1, rv1=0, rv2=0):
+	start = time()
 	m0 = array[0,:] == rv0
 	m1 = array[1,:] == rv1
 	m2 = array[2,:] == rv2
 	assert(len(m0) == len(m1) and len(m1) == len(m2))
 	m0a1 = np.logical_and(m0, m1)
 	m0a1a2 = np.logical_and(m0a1, m2)
-	return sum(m0a1a2)
+	ret = np.sum(m0a1a2)
+	logger.debug("%.3f seconds"%(time()-start))
+	return ret
 def _venn2_helper(array, rv0=1, rv1=0):
+	start = time()
 	m0 = array[0,:] == rv0
 	m1 = array[1,:] == rv1
 	assert(len(m0) == len(m1))
 	m0a1 = np.logical_and(m0, m1)
-	return sum(m0a1)
+	ret = np.sum(m0a1)
+	logger.debug("%.3f seconds"%(time()-start))
+	return ret
 
 def _gen_arrays(GI, chrom, elem, col):
+	start = time()
 	if col == 1:
 		elem_id = GI.element_dict[elem]
 	elif col == 2:
@@ -243,6 +254,7 @@ def _gen_arrays(GI, chrom, elem, col):
 	ba, da = GI.elem_array(chrom, elem_id, col, False)
 	fa, ra = GI.elem_array(chrom, elem_id, col, True)
 	assert(not da)
+	logger.debug("%.3f seconds"%(time()-start))
 	return fa, ra, ba
 sd = 3
 def _calc_stats(A):

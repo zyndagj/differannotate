@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 11/15/2019
+# Last Modified: 12/11/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -105,6 +105,7 @@ class iterit(IntervalTree):
 		super(iterit,self).__init__()
 		self.min = None
 		self.max = None
+		self.set_cache = {}
 	def add(self, start, end, other=None):
 		if self.min == None:
 			self.min = start
@@ -144,9 +145,15 @@ class iterit(IntervalTree):
 		else:
 			return list(filter(lambda x: len(x.data) > col and x.data[col] == eid, super(iterit,self).search(start, end)))
 	def to_set(self,eid=False, col=False, strand=False):
+		cache_name = (eid, col, strand)
+		if cache_name in self.set_cache:
+			return self.set_cache[cache_name].copy()
 		if eid or col or strand:
-			return set(map(interval2tuple, self.iifilter(eid, col, strand)))
-		return set(map(interval2tuple, self.iterintervals()))
+			ret = set(map(interval2tuple, self.iifilter(eid, col, strand)))
+		else:
+			ret = set(map(interval2tuple, self.iterintervals()))
+		self.set_cache[cache_name] = ret
+		return ret.copy()
 
 def _strand(strand):
 	return not isinstance(strand, bool)
@@ -171,7 +178,10 @@ def interval2tuple(interval):
 	(0, 10, 0, 0)
 	(5, 15, 1, 1)
 	'''
-	return (interval.start, interval.end)+tuple(interval.data)
+	if interval.data:
+		return (interval.start, interval.end)+tuple(interval.data)
+	else:
+		return (interval.start, interval.end)
 
 
 if __name__ == "__main__":

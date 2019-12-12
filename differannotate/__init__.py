@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 11/18/2019
+# Last Modified: 12/11/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -62,6 +62,7 @@ def main():
 		help='Figure extension [%(default)s]', default='png', \
 		type=argChecker(('pdf','png','eps'),'figure extension').check)
 	parser.add_argument('-v', '--verbose', action="store_true", help='Enable verbose logging')
+	parser.add_argument('--temd', action="store_true", help='Analyze TE metadata')
 	args = parser.parse_args()
 	################################
 	# Configure logging
@@ -89,9 +90,9 @@ def main():
 	fig_ext = args.ext if args.plot else False
 	if args.reference:
 		logger.info("Basepair resolution results")
-		summaries.tabular(GI, fig_ext=fig_ext)
+		summaries.tabular(GI, fig_ext=fig_ext, temd=args.temd)
 	logger.info("Interval results")
-	summaries.tabular_region(GI, p=args.percent, fig_ext=fig_ext)
+	summaries.tabular_region(GI, p=args.percent, fig_ext=fig_ext, temd=args.temd)
 	logger.info("Done")
 
 if __name__ == "__main__":

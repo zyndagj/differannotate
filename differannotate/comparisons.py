@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 11/18/2019
+# Last Modified: 12/11/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -38,14 +38,20 @@
 import logging
 import numpy as np
 from quicksect import Interval
+from time import time
 from .constants import FORMAT
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN, format=FORMAT)
 
+from differannotate.datastructures import interval2tuple
+
 def _super(array, control_row=0, control_target=1, treat_target=1):
+	start = time()
 	mask = array[control_row,:] == control_target
-	return np.sum(array[:,mask] == treat_target, axis=1)
+	ret = np.sum(array[:,mask] == treat_target, axis=1)
+	logger.debug("%.4f seconds"%(time()-start))
+	return ret
 def tp(array, control_row=0):
 	return _super(array, control_row, 1, 1)
 def fp(array, control_row=0):
@@ -78,16 +84,16 @@ def _overlap_b(A, B):
 	>>> _overlap_b(Interval(0,10), Interval(10,15)
 	0
 	'''
-	def get_se(obj):
-		if isinstance(obj, Interval):
-			return obj.start, obj.end
-		elif isinstance(obj, tuple):
-			return obj[0], obj[1]
-		else:
-			raise TypeError(obj)
-	aS, aE = get_se(A)
-	bS, bE = get_se(B)
+	aS, aE = _get_se(A)
+	bS, bE = _get_se(B)
 	return max(0, min(aE, bE) - max(aS, bS))
+def _get_se(obj):
+	if isinstance(obj, tuple):
+		return obj[0], obj[1]
+	elif isinstance(obj, Interval):
+		return obj.start, obj.end
+	else:
+		raise TypeError(obj)
 
 def _overlap_p(A, B):
 	'''
@@ -98,13 +104,20 @@ def _overlap_p(A, B):
 	0.0
 	'''
 	bases_overlap = _overlap_b(A,B)
-	if isinstance(A, Interval):
-		size_A = A.end - A.start
-	elif isinstance(A, tuple):
+	if isinstance(A, tuple):
 		size_A = A[1] - A[0]
+	elif isinstance(A, Interval):
+		size_A = A.end - A.start
 	else:
 		raise TypeError(A)
-	logger.info("TEST")
+	#logger.info("TEST")
+	return float(bases_overlap)/float(size_A)*100.0
+def _overlap_p_tup(A, B):
+	'''
+	Calculates overlap percentage of A by B
+	'''
+	bases_overlap = max(0, min(A[1], B[1]) - max(A[0], B[0]))
+	size_A = A[1] - A[0]
 	return float(bases_overlap)/float(size_A)*100.0
 
 def overlap(A, B, overlap_p=95):
@@ -114,18 +127,48 @@ def overlap(A, B, overlap_p=95):
 	if overlap_p > 100:
 		logger.warn("Input overlap percentage > 100 [%i] falling back to 100"%(overlap_p))
 		overlap_p = 100
-	if overlap_p < 1:
+	elif overlap_p < 1:
 		logger.error("Input overlap should be expressed as a percentage and not a fraction")
 		raise ValueError(overlap_p)
-	return _overlap_p(A, B) >= overlap_p
+	dA, dB = map(_decode, [A,B])
+	return _overlap_p(dA, dB) >= overlap_p
+def _overlap_tup(A, B, overlap_p=95):
+	return _overlap_p_tup(A, B) >= overlap_p
 	
 def overlap_r(A, B, overlap_p=95):
 	'''
 	>= 95% reciprocal overlap between A and B
 	'''
-	oab = overlap(A, B, overlap_p)
-	oba = overlap(B, A, overlap_p)
+	if overlap_p > 100:
+		logger.warn("Input overlap percentage > 100 [%i] falling back to 100"%(overlap_p))
+		overlap_p = 100
+	elif overlap_p < 1:
+		logger.error("Input overlap should be expressed as a percentage and not a fraction")
+		raise ValueError(overlap_p)
+	dA, dB = map(_decode, [A,B])
+	oab = _overlap_tup(dA, dB, overlap_p)
+	oba = _overlap_tup(dB, dA, overlap_p)
 	return oab and oba
+def _overlap_r_tup(A, B, overlap_p=95):
+	'''
+	>= 95% reciprocal overlap between A and B
+	'''
+	bases_overlap = max(0, min(A[1], B[1]) - max(A[0], B[0]))
+	if not bases_overlap: return False
+	size_A = A[1] - A[0]
+	size_B = B[1] - B[0]
+	oab = float(bases_overlap)/float(size_A)*100.0 >= overlap_p
+	oba = float(bases_overlap)/float(size_B)*100.0 >= overlap_p
+	#oab = _overlap_tup(A, B, overlap_p)
+	#oba = _overlap_tup(B, A, overlap_p)
+	return oab and oba
+def _decode(obj):
+	if isinstance(obj, tuple):
+		return obj
+	elif isinstance(obj, Interval):
+		return interval2tuple(obj)
+	else:
+		raise TypeError(obj)
 
 if __name__ == "__main__":
 	import doctest

@@ -328,12 +328,13 @@ class TestSummaries(unittest.TestCase):
 		GI = reader.gff3_interval(self.gff3_1)
 		GI.add_gff3(self.gff3_2, 'treat')
 		print("")
-		summaries.tabular(GI)
+		summaries.tabular(GI, temd=True)
 		for chrom in GI.get_chrom_set():
 			for d in (GI.element_dict, GI.order_dict, GI.sufam_dict):
 				for elem in d:
 					for strand in '+-B':
 						image = 'base_%s_%s_%s.png'%(chrom, strand, elem)
+						if not os.path.exists(image): print("%s does not exist"%(image))
 						self.assertTrue(os.path.exists(image))
 						os.remove(image)
 	def test_gff3_12_tabular_region(self):
@@ -342,13 +343,13 @@ class TestSummaries(unittest.TestCase):
 		print("")
 		summaries.tabular_region(GI, p=94)
 		for chrom in GI.get_chrom_set():
-			for d in (GI.element_dict, GI.order_dict, GI.sufam_dict):
-				for elem in d:
-					for strand in '+-B':
-						for prefix in ('region','length_bp','proportion'):
-							image = '%s_%s_%s_%s.png'%(prefix, chrom, strand, elem)
-							self.assertTrue(os.path.exists(image))
-							os.remove(image)
+			for elem in GI.element_dict:
+				for strand in '+-B':
+					for prefix in ('region','length_bp','proportion'):
+						image = '%s_%s_%s_%s.png'%(prefix, chrom, strand, elem)
+						if not os.path.exists(image): print("%s does not exist"%(image))
+						self.assertTrue(os.path.exists(image))
+						os.remove(image)
 #	def test_train_cli_01(self):
 #		if not self.test_model: return
 #		testArgs = ['teamRNN', \
