@@ -103,10 +103,13 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			# Generate length boxplot
 			fig_name = "length_bp_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
 			plt.figure(dpi=200)
-			plt.boxplot(map(np.sqrt, length_array_dict.values()), labels=length_array_dict.keys())
+			assert(np.all(length_array_dict[length_array_dict.keys()[0]] == length_array_dict.values()[0]))
+			len_list = [length_array_dict[name] for name in GI.gff3_names]
+			plt.boxplot(map(np.sqrt, len_list), labels=GI.gff3_names)
 			plt.ylabel('sqrt(length)')
 			plt.title('%s %s %s length distribution'%(chrom, sstr, elem))
 			plt.savefig(fig_name)
+			del len_list
 			plt.close()
 			# Generate proportion boxplot
 			if GI.FA:
@@ -124,13 +127,16 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 						plt.setp(bpl[-1]["boxes"], facecolor=colors[BaseIndex[j]])
 				plt.xticks(np.arange(len(GI.gff3_names))+1, GI.gff3_names)
 				max_pro = 0.5
-				for pa in proportion_array_dict.values():
-					for a in pa:
-						if len(a) > 0: max_pro = max(max_pro, max(a))
-				plt.ylim(0, max_pro)
+				#for pa in proportion_array_dict.values():
+				#	for a in pa:
+				#		if len(a) > 0: max_pro = max(max_pro, max(a))
+				for bp in bpl:
+					max_pro = max(max_pro, max([max(w.get_ydata()) for w in bp['whiskers']]))
+				plt.legend([bp["boxes"][0] for bp in bpl[:4]], [BaseIndex[i] for i in range(4)], loc='upper right')
+				plt.ylim(0, min(max_pro*1.2, 1))
 				plt.xlim(0.5, len(GI.gff3_names)+0.5)
 				plt.ylabel('Proportion')
-				plt.title('%s %s %s Base Proportion'%(chrom, sstr, elem))
+				plt.title('%s %s %s Nucleotide Proportion'%(chrom, sstr, elem))
 				plt.savefig(fig_name)
 				plt.close()
 			# Generate venn figure

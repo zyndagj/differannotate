@@ -81,7 +81,7 @@ def main():
 	################################
 	# Create GFF3 intervals
 	################################
-	GI = reader.gff3_interval(args.control, fasta=args.reference)
+	GI = reader.gff3_interval(args.control, name=args.cname, fasta=args.reference)
 	for f, n in zip(args.treat, args.names):
 		GI.add_gff3(f, n)
 	################################
