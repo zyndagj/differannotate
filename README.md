@@ -1,5 +1,4 @@
 # differannotate
-Differentiate genome annotations
 
 Tools like [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml) and [ParsEval](https://aegean.readthedocs.io/en/v0.16.0/parseval.html) already exist for comparing genome annotations, but they only consider transcription features.
 Differannotate was designed to perform a more generic analysis and evaluate as many features as possible.
