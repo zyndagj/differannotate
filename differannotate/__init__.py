@@ -45,18 +45,18 @@ from differannotate import reader, summaries
 def main():
 	fCheck = fileCheck() #class for checking parameters
 	parser = argparse.ArgumentParser(description="A tool for comparing GFF3 annotations")
-	parser.add_argument('-C', '--control', metavar='GFF3', help='Control GFF3', required=True, type=fCheck.gff3)
+	parser.add_argument('-C', '--control', metavar='GFF3', help='Control GFF3. All comparisons are relative to this annotation.', required=True, type=fCheck.gff3)
 	parser.add_argument('-R', '--reference', metavar='FASTA', \
-		help='Control Reference (accurate base metrics)', type=fCheck.fasta)
+		help='Control reference (required for base pair metrics)', type=fCheck.fasta)
 	parser.add_argument('--cname', metavar='STR', help='Name of control GFF3', default='control', type=str)
 	parser.add_argument('-T', '--treat', metavar='GFF3', \
 		help='Space separated list of GFF3 files for comparison against the control', \
 		type=fCheck.gff3, required=True, nargs='+')
 	parser.add_argument('-N', '--names', metavar='STR', \
-		help='Space separated list of names for treatment GFF3 files (must be same order)', \
+		help='Space separated list of names for treatment GFF3 files (name order must match file order)', \
 		type=str, required=True, nargs='+')
 	parser.add_argument('-p', '--percent', metavar='INT', \
-		help='Reciprocal percent overlap threshold', type=int, default=90)
+		help='Reciprocal percent overlap threshold [%(default)s]', type=int, default=90)
 	parser.add_argument('--plot', action="store_true", help="Plot venn diagrams of results")
 	parser.add_argument('-e', '--ext', metavar='EXT', \
 		help='Figure extension [%(default)s]', default='png', \
