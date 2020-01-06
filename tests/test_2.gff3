@@ -1,0 +1,23 @@
+##gff-version   3
+Chr1	Araport11	gene	101	200	.	+	.	ID=AT1G03987;LEN=100;OVERLAP=100
+Chr1	Araport11	lnc_RNA	101	200	.	+	.	ID=AT1G03987.1;LEN=100;OVERLAP=100
+Chr1	Araport11	exon	101	200	.	+	.	ID=AT1G03987:exon:1;LEN=100;OVERLAP=100
+###
+#Chr1	Araport11	protein	151	250	.	-	.	ID=AT1G01030.2-Protein;LEN=100
+###
+Chr1	Araport11	transposable_element	241	334	.	+	.	ID=toosmall;Order=LTR;Superfamily=Copia;LEN=94;OVERLAP=94
+Chr1	Araport11	transposon_fragment	241	347	.	+	.	ID=toobig;Order=LTR;Superfamily=Copia;LEN=107;OVERLAP=93
+###
+Chr1	Araport11	transposable_element	401	496	.	-	.	ID=oksmaller;Order=RC;Superfamily=Helitron;LEN=96
+Chr1	Araport11	transposon_fragment	401	504	.	-	.	ID=okbigger;Order=RC;Superfamily=Helitron;LEN=104
+###
+Chr1	Araport11	transposable_element	551	1050	.	+	.	ID=AT1TE00025;Order=RC;Superfamily=Helitron;LEN=500
+Chr1	Araport11	transposon_fragment	551	650	.	+	.	ID=AT1TE00025;Order=RC;Superfamily=Helitron;LEN=100
+Chr1	Araport11	transposon_fragment	951	1050	.	+	.	ID=AT1TE00025;Order=RC;Superfamily=Helitron;LEN=100
+###
+Chr1	Araport11	transposable_element	651	750	.	-	.	ID=AT1TE00030;Order=DNA;Superfamily=HAT;LEN=100
+Chr1	Araport11	transposon_fragment	651	750	.	-	.	ID=AT1TE00030;Order=DNA;Superfamily=HAT;LEN=100
+###
+Chr1	Araport11	gene	1399	1498	.	-	.	ID=okshifted;LEN=100;OVERLAP=98
+Chr1	Araport11	antisense_lncRNA	1401	1500	.	-	.	ID=AT1G03993.1;LEN=100;OVERLAP=100
+Chr1	Araport11	exon	1397	1496	.	-	.	ID=tooshifted;LEN=100;OVERLAP=96
