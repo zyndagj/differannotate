@@ -335,6 +335,7 @@ class TestSummaries(unittest.TestCase):
 					fa, ra, ba = summaries._gen_arrays(GI, chrom, elem, col+1)
 					for strand, A in zip(('+','-','B'), (fa,ra,ba)):
 						tp, fp, tn, fn, sen, spe, pre = summaries._calc_stats(A)
+						if not (tp[0].sum() or fp[0].sum()): continue
 						if not (tp[1:].sum() or fp[1:].sum()): continue
 						image = 'base_%s_%s_%s.png'%(chrom, strand, elem)
 						if not os.path.exists(image): print("%s does not exist"%(image))

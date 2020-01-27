@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/12/2019
+# Last Modified: 01/26/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -207,7 +207,7 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png',fmt='cs
 		for s, A in zip(('+/-','+','-'), (ba,fa,ra)):
 			#if not np.sum(A): continue
 			tp, fp, tn, fn, sen, spe, pre = _calc_stats(A)
-			if not tp[0]+fp[0]: break
+			if not tp[0]+fp[0]: continue
 			for i, name in enumerate(GI.gff3_names):
 				if not i:
 					print(template.format(chrom, s, elem, name, tp[i],fp[i],tn[i],fn[i],sen[i],spe[i],pre[i], mcl=mcl, mn=mnl, mel=mel))

@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/11/2019
+# Last Modified: 01/26/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -90,9 +90,9 @@ class gff3_interval:
 		with open(fai_file,'r') as FAI:
 			return dict(map(lambda y: (y[0], int(y[1])), map(lambda y: y.split('\t'), FAI.readlines())))
 	def add_gff3(self, gff3, name):
-		self.gff3_trees[name] = self._2tree(gff3)
+		self.gff3_trees[name] = self._2tree(gff3, control=False)
 		self.gff3_names.append(name)
-	def _2tree(self, gff3):
+	def _2tree(self, gff3, control=True):
 		#Chr1    TAIR10  transposable_element_gene       433031  433819  .       -       .       ID=AT1G02228;Note=transposable_element_gene;Name=AT1G02228;Derives_from=AT1TE01405
 		exclude = set(self.chrom_names) if self.include_chrom else set([])
 		interval_tree = dd(iterit)
@@ -104,7 +104,7 @@ class gff3_interval:
 				except:
 					print(tmp)
 					sys.exit(1)
-				if element not in exclude:
+				if element not in exclude and (control or element in self.element_dict):
 					element_id = self.element_dict[element]
 					strand_id = self.strand_dict[strand]
 					start, end = map(int, tmp[3:5])
