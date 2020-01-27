@@ -64,11 +64,16 @@ def tabular_region(GI, p=95, fig_ext='png', temd=False):
 				max_elem_len, max_name_len, p, fig_ext)
 			_print_table_region(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
 				max_elem_len, max_name_len, p, fig_ext)
-def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext='png'):
+def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext='png',fmt='csv'):
 	target = ("", "Element", "TE_Order", "TE_Superfamily")
 	mel = max(map(len, target)+[mel])
 	header = ("Chrom","S",target[col],"Sample","TP", "FP", "FN", "SENS", "PREC")
-	template = "{:<{mcl}} {:^3} {:<{mel}} {:<{mn}} "+' '.join(["{:>5}"]*5)
+	if fmt == 'csv':
+		template = ','.join(["{}"]*9)
+	elif fmt == 'tsv':
+		template = "{:<{mcl}} {:^3} {:<{mel}} {:<{mn}} "+' '.join(["{:>5}"]*5)
+	else:
+		sys.exit("Unhandled format: %s"%(fmt))
 	print(template.format(*header, mcl=mcl, mn=mnl, mel=mel))
 	cname = GI.gff3_names[0]
 	for elem in elem_list:
@@ -90,6 +95,8 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 				if i != 0:
 					tp_list.append(tp)
 					fp_list.append(fp)
+				else:
+					if not tp and not fp: break
 				if not i:
 					print(template.format(chrom, sstr, elem, name, tp,fp,fn,sen,pre, mcl=mcl, mn=mnl, mel=mel))
 				else:
@@ -184,17 +191,23 @@ def tabular(GI, strand=True, fig_ext='png', temd=False):
 			_print_table(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
 				max_elem_len, max_name_len, fig_ext)
 				
-def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png'):
+def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png',fmt='csv'):
 	target = ("", "Element", "TE_Order", "TE_Superfamily")
 	mel = max(map(len, target)+[mel])
 	header = ("Chrom","S",target[col],"Sample","TP", "FP", "TN", "FN", "SENS", "SPEC", "PREC")
-	template = "{:<{mcl}} {:^3} {:<{mel}} {:<{mn}} "+' '.join(["{:>8}"]*7)
+	if fmt == 'csv':
+		template = ','.join(["{}"]*11)
+	elif fmt == 'tsv':
+		template = "{:<{mcl}} {:^3} {:<{mel}} {:<{mn}} "+' '.join(["{:>8}"]*7)
+	else:
+		sys.exit("Unhandled format: %s"%(fmt))
 	print(template.format(*header, mcl=mcl, mn=mnl, mel=mel))
 	for elem in elem_list:
 		fa, ra, ba = _gen_arrays(GI, chrom, elem, col)
 		for s, A in zip(('+/-','+','-'), (ba,fa,ra)):
 			#if not np.sum(A): continue
 			tp, fp, tn, fn, sen, spe, pre = _calc_stats(A)
+			if not tp[0]+fp[0]: break
 			for i, name in enumerate(GI.gff3_names):
 				if not i:
 					print(template.format(chrom, s, elem, name, tp[i],fp[i],tn[i],fn[i],sen[i],spe[i],pre[i], mcl=mcl, mn=mnl, mel=mel))
