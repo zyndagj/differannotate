@@ -44,6 +44,11 @@ from collections import Counter
 from collections import defaultdict as dd
 from differannotate.constants import FORMAT, BaseIndex
 
+try:
+	from itertools import imap
+except:
+	imap = map
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN, format=FORMAT)
 
@@ -185,7 +190,7 @@ class gff3_interval:
 			if interval_tup in n1_int_set:
 				continue
 			n1_s, n1_e = interval_tup[0], interval_tup[1]
-			for n2int_tup in map(interval2tuple, n2_tree.searchfilter(n1_s, n1_e, eid, col, strand)):
+			for n2int_tup in imap(interval2tuple, n2_tree.searchfilter(n1_s, n1_e, eid, col, strand)):
 				if n2int_tup in n2_set and _overlap_r_tup(interval_tup, n2int_tup, p):
 					n1_int_set.add(interval_tup)
 					n1_set.remove(interval_tup)
