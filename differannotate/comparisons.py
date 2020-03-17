@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/11/2019
+# Last Modified: 03/16/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -149,19 +149,19 @@ def overlap_r(A, B, overlap_p=95):
 	oab = _overlap_tup(dA, dB, overlap_p)
 	oba = _overlap_tup(dB, dA, overlap_p)
 	return oab and oba
-def _overlap_r_tup(A, B, overlap_p=95):
-	'''
-	>= 95% reciprocal overlap between A and B
-	'''
+def _overlap_r_tup_val(A, B):
 	bases_overlap = max(0, min(A[1], B[1]) - max(A[0], B[0]))
 	if not bases_overlap: return False
 	size_A = A[1] - A[0]
 	size_B = B[1] - B[0]
-	oab = float(bases_overlap)/float(size_A)*100.0 >= overlap_p
-	oba = float(bases_overlap)/float(size_B)*100.0 >= overlap_p
-	#oab = _overlap_tup(A, B, overlap_p)
-	#oba = _overlap_tup(B, A, overlap_p)
-	return oab and oba
+	oab = float(bases_overlap)/float(size_A)*100.0
+	oba = float(bases_overlap)/float(size_B)*100.0
+	return min(oab, oba)
+def _overlap_r_tup(A, B, overlap_p=95):
+	'''
+	>= 95% reciprocal overlap between A and B
+	'''
+	return  _overlap_r_tup_val(A, B) >= overlap_p
 def _decode(obj):
 	if isinstance(obj, tuple):
 		return obj

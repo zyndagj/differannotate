@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/11/2019
+# Last Modified: 03/17/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -57,10 +57,12 @@ def main():
 		type=str, required=True, nargs='+')
 	parser.add_argument('-p', '--percent', metavar='INT', \
 		help='Reciprocal percent overlap threshold [%(default)s]', type=int, default=90)
+	parser.add_argument('-D', '--dir', metavar='PATH', help='Output directory [%(default)s]', default='.')
 	parser.add_argument('--plot', action="store_true", help="Plot venn diagrams of results")
 	parser.add_argument('-e', '--ext', metavar='EXT', \
 		help='Figure extension [%(default)s]', default='png', \
 		type=argChecker(('pdf','png','eps'),'figure extension').check)
+	parser.add_argument('-b', '--bed', action="store_true", help='Write BED files')
 	parser.add_argument('-v', '--verbose', action="store_true", help='Enable verbose logging')
 	parser.add_argument('--temd', action="store_true", help='Analyze TE metadata')
 	args = parser.parse_args()
@@ -78,10 +80,13 @@ def main():
 	if len(args.names) != len(args.treat):
 		logger.error("treat(%i) != names(%i)"%(len(args.treat), len(args.names)))
 		raise ValueError
+	if not os.path.exists(args.dir):
+		logger.error("Output directory (%s) does not exist"%(args.dir))
+		raise ValueError 
 	################################
 	# Create GFF3 intervals
 	################################
-	GI = reader.gff3_interval(args.control, name=args.cname, fasta=args.reference)
+	GI = reader.gff3_interval(args.control, name=args.cname, fasta=args.reference, out_dir=args.dir)
 	for f, n in zip(args.treat, args.names):
 		GI.add_gff3(f, n)
 	################################
@@ -92,7 +97,7 @@ def main():
 		logger.info("Basepair resolution results")
 		summaries.tabular(GI, fig_ext=fig_ext, temd=args.temd)
 	logger.info("Interval results")
-	summaries.tabular_region(GI, p=args.percent, fig_ext=fig_ext, temd=args.temd)
+	summaries.tabular_region(GI, p=args.percent, fig_ext=fig_ext, temd=args.temd, bed=args.bed)
 	logger.info("Done")
 
 if __name__ == "__main__":

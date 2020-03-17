@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 01/26/2020
+# Last Modified: 03/17/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -35,7 +35,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ###############################################################################
 
-import logging, sys
+import logging, sys, os
 from .constants import FORMAT, BaseIndex
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN, format=FORMAT)
@@ -48,7 +48,7 @@ from matplotlib_venn import venn2, venn3
 import numpy as np
 from time import time
 
-def tabular_region(GI, p=95, fig_ext='png', temd=False):
+def tabular_region(GI, p=95, fig_ext='png', temd=False, bed=False):
 	chrom_set = GI.get_chrom_set()	# intersecting set chroms from all files
 	max_chrom_len = max(map(len, chrom_set)+[len("Chrom")])
 	max_elem_len = max(map(len, list(GI.element_dict)+list(GI.order_dict)+list(GI.sufam_dict)))
@@ -58,15 +58,16 @@ def tabular_region(GI, p=95, fig_ext='png', temd=False):
 	te_elements = set(GI.element_dict) & GI.te_names
 	for chrom in chrom_set:
 		_print_table_region(GI, chrom, GI.element_dict, 1, max_chrom_len, \
-			max_elem_len, max_name_len, p, fig_ext)
+			max_elem_len, max_name_len, p, fig_ext, bed=bed)
 		if temd:
 			_print_table_region(GI, chrom, GI.order_dict, 2, max_chrom_len, \
-				max_elem_len, max_name_len, p, fig_ext)
+				max_elem_len, max_name_len, p, fig_ext, bed=bed)
 			_print_table_region(GI, chrom, GI.sufam_dict, 3, max_chrom_len, \
-				max_elem_len, max_name_len, p, fig_ext)
-def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext='png',fmt='csv'):
+				max_elem_len, max_name_len, p, fig_ext, bed=bed)
+def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext='png', fmt='csv', bed=False):
 	target = ("", "Element", "TE_Order", "TE_Superfamily")
 	mel = max(map(len, target)+[mel])
+	fig_prefix = GI.out_dir
 	header = ("Chrom","S",target[col],"Sample","TP", "FP", "FN", "SENS", "PREC")
 	if fmt == 'csv':
 		template = ','.join(["{}"]*9)
@@ -85,7 +86,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			proportion_array_dict = {}
 			tp_list, fp_list = [], []
 			for i, name in enumerate(GI.gff3_names):
-				Ab, aB, AB = GI.calc_intersect_2(chrom, cname, name, eid, col, p, strand=sval)
+				Ab, aB, AB = GI.calc_intersect_2(chrom, cname, name, elem, col, p, strand=sval, write_files=bed)
 				#if col == 2:
 				#	sAb, saB, sAB = GI.calc_intersect_2(chrom, cname, name, eid, col, p, strand=sval, ret_set=True)
 				#	print "%s-%s"%(cname.upper(), name), sAb
@@ -115,7 +116,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 			plt.boxplot(map(np.sqrt, len_list), labels=GI.gff3_names)
 			plt.ylabel('sqrt(length)')
 			plt.title('%s %s %s length distribution'%(chrom, sstr, elem))
-			plt.savefig(fig_name)
+			plt.savefig(os.path.join(fig_prefix,fig_name))
 			del len_list
 			plt.close()
 			# Generate proportion boxplot
@@ -144,7 +145,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 				plt.xlim(0.5, len(GI.gff3_names)+0.5)
 				plt.ylabel('Proportion')
 				plt.title('%s %s %s Nucleotide Proportion'%(chrom, sstr, elem))
-				plt.savefig(fig_name)
+				plt.savefig(os.path.join(fig_prefix,fig_name))
 				plt.close()
 			# Generate venn figure
 			if len(GI.gff3_names) not in (2,3): continue
@@ -169,7 +170,7 @@ def _print_table_region(GI, chrom, elem_list, col, mcl, mel, mnl, p=95, fig_ext=
 					strand = 'B' if sstr == '+/-' else sstr
 					logger.warn("Empty plot for %s_%s_%s"%(chrom, strand, elem))
 			if len(GI.gff3_names) in (2,3):
-				plt.savefig(fig_name)
+				plt.savefig(os.path.join(fig_prefix,fig_name))
 				plt.close()
 	print("")
 	logger.info("Finished region table")
@@ -194,6 +195,7 @@ def tabular(GI, strand=True, fig_ext='png', temd=False):
 def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png',fmt='csv'):
 	target = ("", "Element", "TE_Order", "TE_Superfamily")
 	mel = max(map(len, target)+[mel])
+	fig_prefix = GI.out_dir
 	header = ("Chrom","S",target[col],"Sample","TP", "FP", "TN", "FN", "SENS", "SPEC", "PREC")
 	if fmt == 'csv':
 		template = ','.join(["{}"]*11)
@@ -242,7 +244,7 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png',fmt='cs
 					venn3(subsets=(Abc, aBc, ABc, abC, AbC, aBC, ABC), set_labels=GI.gff3_names)
 				else:
 					logger.warn("Empty plot for %s_%s_%s"%(chrom, strand, elem))
-			plt.savefig(fig_name)
+			plt.savefig(os.path.join(fig_prefix,fig_name))
 			plt.close()
 	print("")
 

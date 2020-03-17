@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 12/11/2019
+# Last Modified: 03/16/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -134,9 +134,9 @@ class iterit(IntervalTree):
 		assert(col >= 1)
 		if _strand(strand):
 			sid = _get_strand(strand)
-			return list(filter(lambda x: len(x.data) > col and x.data[col] == eid and x.data[0] == sid, self.iterintervals()))
+			return filter(lambda x: len(x.data) > col and x.data[col] == eid and x.data[0] == sid, self.iterintervals())
 		else:
-			return list(filter(lambda x: len(x.data) > col and x.data[col] == eid, self.iterintervals()))
+			return filter(lambda x: len(x.data) > col and x.data[col] == eid, self.iterintervals())
 	def searchfilter(self, start, end, eid, col, strand=False):
 		assert(col >= 1)
 		if _strand(strand):

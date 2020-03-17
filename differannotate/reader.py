@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 01/26/2020
+# Last Modified: 03/17/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -53,12 +53,14 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARN, format=FORMAT)
 
 from differannotate.datastructures import *
-from differannotate.comparisons import overlap_r, _overlap_r_tup
+from differannotate.comparisons import overlap_r, _overlap_r_tup, _overlap_r_tup_val
 
 class gff3_interval:
 	def __init__(self, gff3, name='control', fasta=None, include_chrom=False, force=False, \
+			out_dir = '.', \
 			chrom_names=['chromosome','contig','supercontig'], \
 			te_names=['transposable_element', 'transposable_element_gene', 'transposon_fragment']):
+		self.out_dir = out_dir
 		self._order_re = re.compile('[Oo]rder=(?P<order>[^;/]+)')
 		self._sufam_re = re.compile('[Ss]uperfamily=(?P<sufam>[^;]+)')
 		self.element_dict = dict_index()
@@ -175,7 +177,15 @@ class gff3_interval:
 			return p_array, n_array
 		else:
 			return p_array, []
-	def calc_intersect_2(self, chrom, name1, name2, elem, col, p=95, strand=False, ret_set=False):
+	def calc_intersect_2(self, chrom, name1, name2, elem, col, p=95, strand=False, ret_set=False, write_files=False):
+		if write_files:
+			sstr_dir = {False:'B', '+':'+', '-':'-'}
+			f_prefix = os.path.join(self.out_dir, '%s_%s'%(elem,sstr_dir[strand]))
+			Ab = open('%s_%s_%s_+A-b.bed'%(f_prefix, name1, name2), 'w')
+			aB = open('%s_%s_%s_+B-a.bed'%(f_prefix, name2, name1), 'w')
+			AB = open('%s_%s_%s_+B+A.bed'%(f_prefix, name2, name1), 'w')
+			AB.write("# p=%i\n"%(p))
+			Ab_list, aB_list, AB_list = [], [], []
 		eid = self._get_eid(elem)
 		# (Ab, aB, AB)
 		for n in (name1, name2): assert(chrom in self.gff3_trees[n])
@@ -186,21 +196,67 @@ class gff3_interval:
 		n2_set = n2_tree.to_set(eid, col, strand)	#aB
 		# Used
 		n1_int_set, n2_int_set = set(), set()	#AB
-		for interval_tup in map(interval2tuple, n1_tree.iifilter(eid, col, strand)):
+		for interval_tup in imap(interval2tuple, n1_tree.iifilter(eid, col, strand)):
 			if interval_tup in n1_int_set:
+				logger.error("Interval %s is already contained in the intersecting set"%(str(interval_tup)))
 				continue
 			n1_s, n1_e = interval_tup[0], interval_tup[1]
-			for n2int_tup in imap(interval2tuple, n2_tree.searchfilter(n1_s, n1_e, eid, col, strand)):
-				if n2int_tup in n2_set and _overlap_r_tup(interval_tup, n2int_tup, p):
-					n1_int_set.add(interval_tup)
-					n1_set.remove(interval_tup)
-					n2_int_set.add(n2int_tup)
-					n2_set.remove(n2int_tup)
-					break
+			n2int_tup_set = set(self.pool.map(interval2tuple, n2_tree.searchfilter(n1_s, n1_e, eid, col, strand)))
+			n2int_tup_new = list(n2int_tup_set & n2_set)
+			if not n2int_tup_new:
+				if write_files: Ab_list.append((interval_tup, False, 0))
+				continue
+			partial_ortv = partial(_overlap_r_tup_val, B=interval_tup)
+			n2int_tup_overlap_vals = self.pool.map(partial_ortv, n2int_tup_new)
+			#print n2int_tup_overlap_vals
+			max_overlap = max(n2int_tup_overlap_vals)
+			max_n2int_tup = n2int_tup_new[n2int_tup_overlap_vals.index(max_overlap)]
+			if max_overlap >= p:
+				#print("Keeping %s"%(str(interval_tup)))
+				n1_int_set.add(interval_tup)
+				n1_set.remove(interval_tup)
+				n2_int_set.add(max_n2int_tup)
+				n2_set.remove(max_n2int_tup)
+			if write_files:
+				if max_overlap >= p:
+					AB_list.append((max_n2int_tup, interval_tup, max_overlap))
+				else:
+					Ab_list.append((interval_tup, max_n2int_tup, max_overlap))
+		if write_files:
+			# Calculate aB
+			for n2_tup in n2_set:
+				n2_s, n2_e = n2_tup[:2]
+				n1_tup_set = set(self.pool.map(interval2tuple, n1_tree.searchfilter(n2_s, n2_e, eid, col, strand)))
+				n1_tup_new = list(n1_tup_set & n1_set)
+				if not n1_tup_new:
+					aB_list.append(n2_tup, None, 0)
+					continue
+				partial_ortv = partial(_overlap_r_tup_val, B=n2_tup)
+				n1_tup_overlap_vals = self.pool.map(partial_ortv, n1_tup_new)
+				max_overlap = max(n1_tup_overlap_vals)
+				max_n1_tup = n1_tup_new[n1_tup_overlap_vals.index(max_overlap)]
+				aB_list.append((n2_tup, max_n1_tup, max_overlap))
+			self._write_overlap2(Ab_list, chrom, elem, Ab)
+			self._write_overlap2(aB_list, chrom, elem, aB)
+			self._write_overlap2(AB_list, chrom, elem, AB)
 		assert len(n1_int_set) == len(n2_int_set)
 		if ret_set:
 			return n1_set, n2_set, n1_int_set
 		return len(n1_set), len(n2_set), len(n1_int_set)
+	def _write_overlap2(self, L, chrom, elem, OF):
+		BED = []
+		for AT, BT, OV in L:
+			assert AT
+			AT_s, AT_e, AT_strand = AT[:3]
+			if BT:
+				BT_s, BT_e, BT_strand = BT[:3]
+				BEDSTR = (chrom, AT_s, AT_e, self.strand_dict[AT_strand], OV, BT_s, BT_e, self.strand_dict[BT_strand])
+			else:
+				BT_s, BT_e, BT_strand = 'NA', 'NA', 'NA'
+				BEDSTR = (chrom, AT_s, AT_e, self.strand_dict[AT_strand], OV, BT_s, BT_e, BT_strand)
+			BED.append('\t'.join(map(str, BEDSTR)))
+		OF.write('\n'.join(BED))
+		OF.close()
 	def calc_intersect_3(self, chrom, name1, name2, name3, elem, col, p=95, strand=False, ret_set=False):
 		# (Abc, aBc, ABc, abC, AbC, aBC, ABC)
 		eid = self._get_eid(elem)
