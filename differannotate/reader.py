@@ -111,6 +111,7 @@ class gff3_interval:
 				except:
 					print(tmp)
 					sys.exit(1)
+				if strand not in self.strand_dict: continue
 				if element not in exclude and (control or element in self.element_dict):
 					element_id = self.element_dict[element]
 					strand_id = self.strand_dict[strand]
