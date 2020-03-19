@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 03/17/2020
+# Last Modified: 03/18/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -178,6 +178,7 @@ class gff3_interval:
 		else:
 			return p_array, []
 	def calc_intersect_2(self, chrom, name1, name2, elem, col, p=95, strand=False, ret_set=False, write_files=False):
+		if name1 == name2: write_files=False
 		if write_files:
 			sstr_dir = {False:'B', '+':'+', '-':'-'}
 			f_prefix = os.path.join(self.out_dir, '%s_%s'%(elem,sstr_dir[strand]))
@@ -186,6 +187,7 @@ class gff3_interval:
 			AB = open('%s_%s_%s_+B+A.bed'%(f_prefix, name2, name1), 'w')
 			AB.write("# p=%i\n"%(p))
 			Ab_list, aB_list, AB_list = [], [], []
+			Ab_set = set()
 		eid = self._get_eid(elem)
 		# (Ab, aB, AB)
 		for n in (name1, name2): assert(chrom in self.gff3_trees[n])
@@ -198,13 +200,15 @@ class gff3_interval:
 		n1_int_set, n2_int_set = set(), set()	#AB
 		for interval_tup in imap(interval2tuple, n1_tree.iifilter(eid, col, strand)):
 			if interval_tup in n1_int_set:
-				logger.error("Interval %s is already contained in the intersecting set"%(str(interval_tup)))
+				logger.debug("%s Interval %s is already contained in the intersecting set"%(elem, str(interval_tup)))
 				continue
 			n1_s, n1_e = interval_tup[0], interval_tup[1]
 			n2int_tup_set = set(self.pool.map(interval2tuple, n2_tree.searchfilter(n1_s, n1_e, eid, col, strand)))
 			n2int_tup_new = list(n2int_tup_set & n2_set)
 			if not n2int_tup_new:
-				if write_files: Ab_list.append((interval_tup, False, 0))
+				if write_files and interval_tup not in Ab_set:
+					Ab_list.append((interval_tup, False, 0))
+					Ab_set.add(interval_tup)
 				continue
 			partial_ortv = partial(_overlap_r_tup_val, B=interval_tup)
 			n2int_tup_overlap_vals = self.pool.map(partial_ortv, n2int_tup_new)
@@ -220,8 +224,9 @@ class gff3_interval:
 			if write_files:
 				if max_overlap >= p:
 					AB_list.append((max_n2int_tup, interval_tup, max_overlap))
-				else:
-					Ab_list.append((interval_tup, max_n2int_tup, max_overlap))
+				elif interval_tup not in Ab_set:
+					Ab_list.append((interval_tup, max_n2int_tup, max_overlap if max_overlap else 0))
+					Ab_set.add(interval_tup)
 		if write_files:
 			# Calculate aB
 			for n2_tup in n2_set:
@@ -229,13 +234,13 @@ class gff3_interval:
 				n1_tup_set = set(self.pool.map(interval2tuple, n1_tree.searchfilter(n2_s, n2_e, eid, col, strand)))
 				n1_tup_new = list(n1_tup_set & n1_set)
 				if not n1_tup_new:
-					aB_list.append(n2_tup, None, 0)
+					aB_list.append((n2_tup, None, 0))
 					continue
 				partial_ortv = partial(_overlap_r_tup_val, B=n2_tup)
 				n1_tup_overlap_vals = self.pool.map(partial_ortv, n1_tup_new)
 				max_overlap = max(n1_tup_overlap_vals)
 				max_n1_tup = n1_tup_new[n1_tup_overlap_vals.index(max_overlap)]
-				aB_list.append((n2_tup, max_n1_tup, max_overlap))
+				aB_list.append((n2_tup, max_n1_tup, max_overlap if max_overlap else 0))
 			self._write_overlap2(Ab_list, chrom, elem, Ab)
 			self._write_overlap2(aB_list, chrom, elem, aB)
 			self._write_overlap2(AB_list, chrom, elem, AB)
