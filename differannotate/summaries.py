@@ -2,7 +2,7 @@
 #
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 03/17/2020
+# Last Modified: 04/03/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -203,6 +203,7 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png',fmt='cs
 		template = "{:<{mcl}} {:^3} {:<{mel}} {:<{mn}} "+' '.join(["{:>8}"]*7)
 	else:
 		sys.exit("Unhandled format: %s"%(fmt))
+	tpd, fpd, tnd, fnd = ({s:{e:{} for e in elem_list} for s in ('+/-','+','-')} for i in range(4))
 	print(template.format(*header, mcl=mcl, mn=mnl, mel=mel))
 	for elem in elem_list:
 		fa, ra, ba = _gen_arrays(GI, chrom, elem, col)
@@ -215,6 +216,10 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png',fmt='cs
 					print(template.format(chrom, s, elem, name, tp[i],fp[i],tn[i],fn[i],sen[i],spe[i],pre[i], mcl=mcl, mn=mnl, mel=mel))
 				else:
 					print(template.format('','','', name, tp[i],fp[i],tn[i],fn[i],sen[i],spe[i],pre[i], mcl=mcl, mn=mnl, mel=mel))
+					tpd[s][elem][name] = np.float32(tp[i])
+					fpd[s][elem][name] = np.float32(fp[i])
+					tnd[s][elem][name] = np.float32(tn[i])
+					fnd[s][elem][name] = np.float32(fn[i])
 			if not fig_ext or A.shape[0] not in (2,3) or not (tp[1:].sum() or fp[1:].sum()): continue
 			# Generate figure
 			strand = 'B' if s == '+/-' else s
@@ -246,7 +251,39 @@ def _print_table(GI, chrom, elem_list, col, mcl, mel, mnl, fig_ext='png',fmt='cs
 					logger.warn("Empty plot for %s_%s_%s"%(chrom, strand, elem))
 			plt.savefig(os.path.join(fig_prefix,fig_name))
 			plt.close()
+	# Generate barcharts
+	nelem = len(elem_list)
+	nnames = len(GI.gff3_names)-1
+	width = 0.7/nnames
+	X = np.arange(4)
+	#tpd, fpd, tnd, fnd = #{strand:{elem:{name:}}}
+	# Compare tools
+	for s in ('+/-','+','-'):
+		sstrand = 'B' if sstr == '+/-' else sstr
+		for e in elem_list:
+			plt.figure(figsize=((0.25*nnames)*nelem + (0.5*nelem), 4), dpi=200)
+			for i, name in enumerate(GI.gff3_names[1:]):
+				plt.bar(X-((nnames-1)/2+i)*width, calc_metrics(tpd, fpd, tnd, fnd, s, e, name), width, label=name)
+			plt.ylim(0,100)
+			plt.xticks(X, ('Sensitivity','Specificity','Precision','Accuracy'))
+			plt.ylabel("Percent")
+			plt.legend()
+			plt.title("Performance of %s strand %s predictions"%(s,e).title())
+			fig_name = "performance_%s_%s_%s.%s"%(chrom, sstrand, elem, fig_ext)
+			plt.savefig(os.path.join(fig_prefix,fig_name))
+	# Compare strands
 	print("")
+
+def _calc_metrics(tpd, fpd, tnd, fnd, s, e, n):
+	tp = tpd[s][e][n]
+	fp = fpd[s][e][n]
+	tn = tnd[s][e][n]
+	fn = fnd[s][e][n]
+	sens = tp/(tp+fn)*100
+	spec = tn/(tn+fp)*100
+	prec = tp/(tp+fp)*100
+	accu = (tp+tn)/(tp+fp+tn+fn)*100
+	return sens, spec, prec, accu
 
 def _venn3_helper(array, rv0=1, rv1=0, rv2=0):
 	start = time()
